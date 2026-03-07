@@ -30,7 +30,7 @@ order_state = {"waiting_for_method": False, "waiting_for_address": False}
 def home(): return render_template("index.html")
 
 # --- ADD TO CONFIGURATION ---
-ADMIN_PASSWORD = "store_admin_secret"
+ADMIN_PASSWORD = "adminbot"
 
 # --- ADMIN ROUTE ---
 @app.route("/admin")
