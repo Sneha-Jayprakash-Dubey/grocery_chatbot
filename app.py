@@ -123,6 +123,9 @@ def chat():
             item = match[0]; qty = int(words[-1]); price = products[item] * qty
             total += price; orders.append((item, qty, price))
             return jsonify({"reply": f"✅ Added **{item.title()} x{qty}**. Total: ₹{total}"})
+        
+    if any(word in msg for word in ["location", "where", "address"]):
+        return jsonify({"reply": f"📍 **Store Address:**\n{STORE_LOCATION}"})
 
     return jsonify({"reply": chatbot_response(msg)})
 
