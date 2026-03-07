@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fresh Grocery Assistant</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<div class="app">
+    <header class="header">
+        <span class="logo">🛒</span> Fresh Grocery Assistant
+    </header>
+
+    <main class="chatbox" id="chatbox">
+        <div class="bot-message message animate-in">
+            <div class="avatar">✨</div>
+            <div class="text">Hi! Ready to stock up? Tap a suggestion below or type what you need.</div>
+        </div>
+    </main>
+
+    <div class="controls-wrapper">
+        <div class="suggestion-container" id="suggestions">
+    <button class="chip" onclick="quickSend('Help')">🆘 Help</button>
+    <button class="chip" onclick="quickSend('Categories')">📂 Categories</button>
+    <button class="chip" onclick="quickSend('Store Location')">📍 Location</button>
+    <button class="chip" onclick="quickSend('Confirm Order')">✅ Checkout</button>
+</div>
+
+        <div class="input-container">
+            <input id="userInput" placeholder="Ask for groceries..." onkeypress="if(event.key==='Enter'){send();}">
+            <button class="send-btn" onclick="send()">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path></svg>
+            </button>
+        </div>
+    </div>
+</div>
+
+<script src="/static/script.js"></script>
+</body>
+</html>

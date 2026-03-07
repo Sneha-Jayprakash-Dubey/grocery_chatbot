@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: grocery-chatbot
+    runtime: python
+    plan: free # Ensures you stay on the free tier
+    buildCommand: ./render-build.sh
+    startCommand: gunicorn app:app
+    envVars:
+      - key: PORT
+        value: 5000
+      - key: ADMIN_PASSWORD
+        sync: false # You will set this manually in the dashboard for security

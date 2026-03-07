@@ -1,0 +1,22 @@
+{
+ "intents":[
+
+  {
+   "tag":"greeting",
+   "patterns":["hi","Hi","hello","hey","good morning","good evening"],
+   "responses":["Hello! Welcome to Fresh Grocery Shop 🛒","Hi there! How can I help you today?"]
+  },
+
+  {
+   "tag":"categories",
+   "patterns":["show categories","what items available","grocery list","categories","what do you sell"],
+   "responses":["We have Fruits, Vegetables, Dairy, and Snacks. What would you like to see?"]
+  },
+
+  {
+   "tag":"thanks",
+   "patterns":["thanks","thank you"],
+   "responses":["Thank you for shopping with us 🛒"]
+  }
+ ]
+}
