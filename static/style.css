@@ -9,6 +9,9 @@ body { background: var(--bg); height: 100vh; margin: 0; overflow: hidden; font-f
 .app { display: flex; flex-direction: column; height: 100vh; }
 
 .header { padding: 15px 20px; background: white; border-bottom: 1px solid #ddd; font-weight: bold; font-size: 1.1rem; }
+.header { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.auth-bar { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; }
+.auth-user { color: #444; }
 
 /* The Scrollable Chat Area */
 .chatbox {

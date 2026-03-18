@@ -2,3 +2,4 @@ flask
 scikit-learn
 nltk
 gunicorn
+pywebpush

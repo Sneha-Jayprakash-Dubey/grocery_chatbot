@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -10,23 +10,29 @@
 
 <div class="app">
     <header class="header">
-        <span class="logo">🛒</span> Fresh Grocery Assistant
+        <div><span class="logo">&#128722;</span> Fresh Grocery Assistant</div>
+        <div id="authBar" class="auth-bar">
+            <span id="authUser" class="auth-user">Guest</span>
+            <button class="chip" id="loginBtn" type="button">Login</button>
+            <button class="chip" id="registerBtn" type="button">Register</button>
+            <button class="chip" id="logoutBtn" type="button" style="display:none;">Logout</button>
+        </div>
     </header>
 
     <main class="chatbox" id="chatbox">
         <div class="bot-message message animate-in">
-            <div class="avatar">✨</div>
+            <div class="avatar">&#10024;</div>
             <div class="text">Hi! Ready to stock up? Tap a suggestion below or type what you need.</div>
         </div>
     </main>
 
     <div class="controls-wrapper">
         <div class="suggestion-container" id="suggestions">
-    <button class="chip" onclick="quickSend('Help')">🆘 Help</button>
-    <button class="chip" onclick="quickSend('Categories')">📂 Categories</button>
-    <button class="chip" onclick="quickSend('Store Location')">📍 Location</button>
-    <button class="chip" onclick="quickSend('Confirm Order')">✅ Checkout</button>
-</div>
+            <button class="chip" onclick="quickSend('Help')">Help</button>
+            <button class="chip" onclick="quickSend('Categories')">Categories</button>
+            <button class="chip" onclick="quickSend('Store Location')">Location</button>
+            <button class="chip" onclick="quickSend('Confirm Order')">Checkout</button>
+        </div>
 
         <div class="input-container">
             <input id="userInput" placeholder="Ask for groceries..." onkeypress="if(event.key==='Enter'){send();}">

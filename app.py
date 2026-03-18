@@ -1,135 +1,1942 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, Response, jsonify, redirect, render_template, request, send_from_directory, session, url_for
 from model import chatbot_response
 from difflib import get_close_matches
+from markupsafe import escape
+from werkzeug.security import check_password_hash, generate_password_hash
 import datetime
-import random
+import json
+import io
+import csv
 import os
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "default_fallback")
-app = Flask(__name__)
+import random
+import re
+import secrets
+import sqlite3
+try:
+    from pywebpush import WebPushException, webpush
+except Exception:  # pragma: no cover - optional dependency at runtime
+    WebPushException = Exception
+    webpush = None
 
-# ==========================================
-# STORE OWNER CONFIGURATION
-# ==========================================
-store_data = {
-    "fruits": {"apple": 120, "banana": 60, "orange": 80, "mango": 150},
-    "vegetables": {"potato": 40, "tomato": 50, "carrot": 60, "onion": 30},
-    "snacks": {"biscuits": 30, "chips": 20, "chocolate": 50},
-    "dairy": {"milk": 60, "cheese": 120, "butter": 100}
-}
+app = Flask(__name__)
+app.secret_key = os.getenv("FLASK_SECRET_KEY", secrets.token_hex(32))
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+)
 
 STORE_LOCATION = "123 Green Valley Road, Fresh Market Square"
-DELIVERY_FEE, MIN_FREE_DELIVERY, MIN_ORDER_FOR_DELIVERY = 30, 500, 200
-products = {item: price for cat in store_data.values() for item, price in cat.items()}
+DELIVERY_FEE = 30
+MIN_FREE_DELIVERY = 500
+MIN_ORDER_FOR_DELIVERY = 200
 
-# Global State (Note: Resets if server restarts)
-orders, total = [], 0
-all_orders = [] # <--- Database for the Store Owner
-order_state = {"waiting_for_method": False, "waiting_for_address": False}
+DB_PATH = os.getenv("DATABASE_PATH", "orders.db")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
+ADMIN_PASSWORD_HASH = os.getenv("ADMIN_PASSWORD_HASH")
+VAPID_PUBLIC_KEY = os.getenv("VAPID_PUBLIC_KEY", "")
+VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY", "")
+VAPID_CLAIMS_SUB = os.getenv("VAPID_CLAIMS_SUB", "mailto:admin@example.com")
+CRON_SECRET = os.getenv("CRON_SECRET", "")
+
+VALID_UNITS = {"kg", "g", "litre", "ml", "piece", "packet", "dozen"}
+UNIT_ALIASES = {
+    "kg": "kg",
+    "kilo": "kg",
+    "g": "g",
+    "gm": "g",
+    "gram": "g",
+    "grams": "g",
+    "litre": "litre",
+    "liter": "litre",
+    "ltr": "litre",
+    "l": "litre",
+    "ml": "ml",
+    "piece": "piece",
+    "pieces": "piece",
+    "pc": "piece",
+    "pcs": "piece",
+    "packet": "packet",
+    "pack": "packet",
+    "packs": "packet",
+    "pkt": "packet",
+    "dozen": "dozen",
+}
+
+HINGLISH_MAP = {
+    "aloo": "potato",
+    "pyaz": "onion",
+    "pyaaz": "onion",
+    "tamatar": "tomato",
+    "doodh": "milk",
+    "kela": "banana",
+    "seb": "apple",
+    "anda": "egg",
+    "chai patti": "tea",
+    "atta": "flour",
+    "aata": "flour",
+    "chawal": "rice",
+    "mirchi": "chilli",
+    "dhaniya": "coriander",
+    "adrak": "ginger",
+}
+
+DEFAULT_CATALOG = {
+    "fruits": [
+        {"name": "apple", "price_per_unit": 120, "base_unit": "kg", "aliases": "seb"},
+        {"name": "banana", "price_per_unit": 60, "base_unit": "dozen", "aliases": "kela"},
+        {"name": "orange", "price_per_unit": 80, "base_unit": "kg", "aliases": ""},
+        {"name": "mango", "price_per_unit": 150, "base_unit": "kg", "aliases": ""},
+    ],
+    "vegetables": [
+        {"name": "potato", "price_per_unit": 40, "base_unit": "kg", "aliases": "aloo"},
+        {"name": "tomato", "price_per_unit": 50, "base_unit": "kg", "aliases": "tamatar"},
+        {"name": "carrot", "price_per_unit": 60, "base_unit": "kg", "aliases": "gajar"},
+        {"name": "onion", "price_per_unit": 30, "base_unit": "kg", "aliases": "pyaz,pyaaz"},
+    ],
+    "snacks": [
+        {"name": "biscuits", "price_per_unit": 30, "base_unit": "packet", "aliases": "biscuit"},
+        {"name": "chips", "price_per_unit": 20, "base_unit": "packet", "aliases": ""},
+        {"name": "chocolate", "price_per_unit": 50, "base_unit": "piece", "aliases": ""},
+    ],
+    "dairy": [
+        {"name": "milk", "price_per_unit": 60, "base_unit": "litre", "aliases": "doodh"},
+        {"name": "cheese", "price_per_unit": 120, "base_unit": "piece", "aliases": ""},
+        {"name": "butter", "price_per_unit": 100, "base_unit": "piece", "aliases": ""},
+    ],
+}
+
+
+def get_language(state):
+    return state.get("language", "english")
+
+
+def reply_text(state, english, hindi=None, hinglish=None):
+    lang = get_language(state)
+    if lang == "hindi" and hindi:
+        return hindi
+    if lang == "hinglish" and hinglish:
+        return hinglish
+    return english
+
+
+def detect_language_command(msg):
+    direct = msg.strip().lower()
+    if direct in {"english", "hindi", "hinglish"}:
+        return direct
+
+    match = re.search(r"\b(language|lang|reply in|speak)\s+(english|hindi|hinglish)\b", direct)
+    if match:
+        return match.group(2)
+    return None
+
+
+def get_db_connection():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def ensure_column(conn, table_name, column_name, ddl):
+    existing = {
+        row["name"]
+        for row in conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+    }
+    if column_name not in existing:
+        conn.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {ddl}")
+
+
+def seed_catalog_if_empty(conn):
+    count = conn.execute("SELECT COUNT(*) AS c FROM categories").fetchone()["c"]
+    if count > 0:
+        return
+
+    for category_name, product_list in DEFAULT_CATALOG.items():
+        cur = conn.execute(
+            "INSERT INTO categories(name) VALUES (?)",
+            (category_name.lower().strip(),),
+        )
+        category_id = cur.lastrowid
+        for p in product_list:
+            conn.execute(
+                """
+                INSERT INTO products(category_id, name, price_per_unit, base_unit, aliases, is_active)
+                VALUES (?, ?, ?, ?, ?, 1)
+                """,
+                (
+                    category_id,
+                    p["name"].lower().strip(),
+                    float(p["price_per_unit"]),
+                    p["base_unit"],
+                    p.get("aliases", "").lower().strip(),
+                ),
+            )
+
+
+def init_db():
+    with get_db_connection() as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS categories (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT UNIQUE NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS products (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                category_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                price_per_unit REAL NOT NULL,
+                base_unit TEXT NOT NULL,
+                aliases TEXT DEFAULT '',
+                is_active INTEGER NOT NULL DEFAULT 1,
+                FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS orders (
+                id TEXT PRIMARY KEY,
+                created_at TEXT NOT NULL,
+                method TEXT NOT NULL,
+                address TEXT,
+                subtotal INTEGER NOT NULL,
+                delivery_fee INTEGER NOT NULL,
+                total INTEGER NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS order_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                order_id TEXT NOT NULL,
+                item TEXT NOT NULL,
+                qty REAL NOT NULL,
+                unit TEXT,
+                item_id INTEGER,
+                line_total INTEGER NOT NULL,
+                FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS event_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at TEXT NOT NULL,
+                event_type TEXT NOT NULL,
+                session_user_id TEXT NOT NULL,
+                order_id TEXT,
+                payload_json TEXT
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS push_subscriptions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                session_user_id TEXT NOT NULL,
+                endpoint TEXT UNIQUE NOT NULL,
+                p256dh TEXT NOT NULL,
+                auth TEXT NOT NULL,
+                is_active INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+
+        ensure_column(conn, "products", "aliases", "TEXT DEFAULT ''")
+        ensure_column(conn, "products", "is_active", "INTEGER NOT NULL DEFAULT 1")
+        ensure_column(conn, "orders", "pickup_time", "TEXT")
+        ensure_column(conn, "orders", "reminder_sent", "INTEGER NOT NULL DEFAULT 0")
+        ensure_column(conn, "orders", "status", "TEXT DEFAULT 'placed'")
+        ensure_column(conn, "orders", "user_id", "INTEGER")
+        ensure_column(conn, "orders", "session_user_id", "TEXT")
+        ensure_column(conn, "order_items", "unit", "TEXT")
+        ensure_column(conn, "order_items", "item_id", "INTEGER")
+        ensure_column(conn, "event_logs", "payload_json", "TEXT")
+        ensure_column(conn, "event_logs", "user_id", "INTEGER")
+        ensure_column(conn, "push_subscriptions", "is_active", "INTEGER NOT NULL DEFAULT 1")
+        ensure_column(conn, "push_subscriptions", "created_at", "TEXT")
+        ensure_column(conn, "push_subscriptions", "updated_at", "TEXT")
+
+        seed_catalog_if_empty(conn)
+        conn.commit()
+
+
+def get_user_state():
+    state = session.get("cart_state")
+    if not state:
+        state = {
+            "orders": [],
+            "total": 0,
+            "waiting_for_method": False,
+            "waiting_for_address": False,
+            "waiting_for_pickup_time": False,
+            "language": "english",
+        }
+        session["cart_state"] = state
+    if "language" not in state:
+        state["language"] = "english"
+        session["cart_state"] = state
+    return state
+
+
+def save_user_state(state):
+    session["cart_state"] = state
+    session.modified = True
+
+
+def clear_user_state():
+    state = get_user_state()
+    save_user_state(
+        {
+            "orders": [],
+            "total": 0,
+            "waiting_for_method": False,
+            "waiting_for_address": False,
+            "waiting_for_pickup_time": False,
+            "language": state.get("language", "english"),
+        }
+    )
+
+
+def generate_order_id():
+    return f"GRC-{random.randint(100000, 999999)}"
+
+
+def save_order(order_id, method, address, subtotal, delivery_fee, total, items, pickup_time=None):
+    created_at = datetime.datetime.now().isoformat(timespec="seconds")
+    user_id = get_logged_in_user_id()
+    session_user_id = get_session_user_id()
+    with get_db_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO orders (id, created_at, method, address, subtotal, delivery_fee, total, pickup_time, reminder_sent, status, user_id, session_user_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 'placed', ?, ?)
+            """,
+            (order_id, created_at, method, address, subtotal, delivery_fee, total, pickup_time, user_id, session_user_id),
+        )
+        conn.executemany(
+            """
+            INSERT INTO order_items (order_id, item, qty, unit, item_id, line_total)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            [
+                (
+                    order_id,
+                    it["item"],
+                    float(it["qty"]),
+                    it["unit"],
+                    it.get("item_id"),
+                    int(it["line_total"]),
+                )
+                for it in items
+            ],
+        )
+        conn.commit()
+
+
+def save_order_with_retry(method, address, subtotal, delivery_fee, total, items, pickup_time=None, retries=5):
+    for _ in range(retries):
+        order_id = generate_order_id()
+        try:
+            save_order(order_id, method, address, subtotal, delivery_fee, total, items, pickup_time=pickup_time)
+            return order_id
+        except sqlite3.IntegrityError:
+            continue
+    raise RuntimeError("Could not generate a unique order ID after multiple attempts.")
+
+
+def format_qty(qty):
+    return str(int(qty)) if float(qty).is_integer() else f"{qty:.2f}".rstrip("0").rstrip(".")
+
+
+def parse_pickup_time(raw_text):
+    text = raw_text.strip().lower()
+    now = datetime.datetime.now()
+    formats = ["%H:%M", "%I:%M %p", "%I %p"]
+    for fmt in formats:
+        try:
+            t = datetime.datetime.strptime(text, fmt).time()
+            pickup_dt = datetime.datetime.combine(now.date(), t)
+            if pickup_dt <= now:
+                return None, "Please enter a future time (today)."
+            return pickup_dt, None
+        except ValueError:
+            continue
+    return None, "Invalid time format. Use HH:MM or HH:MM AM/PM."
+
+
+def get_session_user_id():
+    session_user_id = session.get("session_user_id")
+    if not session_user_id:
+        session_user_id = secrets.token_hex(8)
+        session["session_user_id"] = session_user_id
+        session.modified = True
+    return session_user_id
+
+
+def get_logged_in_user_id():
+    return session.get("user_id")
+
+
+def get_logged_in_username():
+    return session.get("username")
+
+
+def log_event(event_type, payload=None, order_id=None):
+    created_at = datetime.datetime.now().isoformat(timespec="seconds")
+    session_user_id = get_session_user_id()
+    payload_json = json.dumps(payload or {}, ensure_ascii=True)
+    user_id = get_logged_in_user_id()
+    with get_db_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO event_logs (created_at, event_type, session_user_id, user_id, order_id, payload_json)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (created_at, event_type, session_user_id, user_id, order_id, payload_json),
+        )
+        conn.commit()
+
+
+def fetch_event_logs(limit=500):
+    with get_db_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT id, created_at, event_type, session_user_id, user_id, order_id, payload_json
+            FROM event_logs
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def is_web_push_configured():
+    return bool(VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY and webpush is not None)
+
+
+def upsert_push_subscription(subscription):
+    endpoint = (subscription.get("endpoint") or "").strip()
+    keys = subscription.get("keys") or {}
+    p256dh = (keys.get("p256dh") or "").strip()
+    auth = (keys.get("auth") or "").strip()
+    if not endpoint or not p256dh or not auth:
+        return False, "Invalid subscription payload."
+
+    now = datetime.datetime.now().isoformat(timespec="seconds")
+    user_id = get_logged_in_user_id()
+    session_user_id = get_session_user_id()
+
+    with get_db_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO push_subscriptions (user_id, session_user_id, endpoint, p256dh, auth, is_active, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, 1, ?, ?)
+            ON CONFLICT(endpoint) DO UPDATE SET
+                user_id=excluded.user_id,
+                session_user_id=excluded.session_user_id,
+                p256dh=excluded.p256dh,
+                auth=excluded.auth,
+                is_active=1,
+                updated_at=excluded.updated_at
+            """,
+            (user_id, session_user_id, endpoint, p256dh, auth, now, now),
+        )
+        conn.commit()
+    return True, "Subscription saved."
+
+
+def deactivate_push_subscription(endpoint):
+    if not endpoint:
+        return
+    with get_db_connection() as conn:
+        conn.execute(
+            "UPDATE push_subscriptions SET is_active = 0, updated_at = ? WHERE endpoint = ?",
+            (datetime.datetime.now().isoformat(timespec="seconds"), endpoint),
+        )
+        conn.commit()
+
+
+def fetch_push_subscriptions_for_order(order_id):
+    with get_db_connection() as conn:
+        order_row = conn.execute(
+            "SELECT id, user_id, session_user_id FROM orders WHERE id = ?",
+            (order_id,),
+        ).fetchone()
+        if not order_row:
+            return []
+
+        user_id = order_row["user_id"]
+        session_user_id = order_row["session_user_id"]
+        rows = []
+        if user_id:
+            rows = conn.execute(
+                """
+                SELECT endpoint, p256dh, auth
+                FROM push_subscriptions
+                WHERE is_active = 1 AND user_id = ?
+                """,
+                (user_id,),
+            ).fetchall()
+
+        if not rows and session_user_id:
+            rows = conn.execute(
+                """
+                SELECT endpoint, p256dh, auth
+                FROM push_subscriptions
+                WHERE is_active = 1 AND session_user_id = ?
+                """,
+                (session_user_id,),
+            ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def send_web_push_notification(order_id, title, message):
+    if not is_web_push_configured():
+        return {"sent": 0, "failed": 0, "reason": "push_not_configured"}
+
+    subs = fetch_push_subscriptions_for_order(order_id)
+    if not subs:
+        return {"sent": 0, "failed": 0, "reason": "no_subscriptions"}
+
+    payload = json.dumps({"title": title, "message": message, "order_id": order_id}, ensure_ascii=True)
+    sent = 0
+    failed = 0
+
+    for s in subs:
+        sub_info = {
+            "endpoint": s["endpoint"],
+            "keys": {"p256dh": s["p256dh"], "auth": s["auth"]},
+        }
+        try:
+            webpush(
+                subscription_info=sub_info,
+                data=payload,
+                vapid_private_key=VAPID_PRIVATE_KEY,
+                vapid_claims={"sub": VAPID_CLAIMS_SUB},
+            )
+            sent += 1
+        except WebPushException as exc:
+            failed += 1
+            status_code = getattr(getattr(exc, "response", None), "status_code", None)
+            if status_code in (404, 410):
+                deactivate_push_subscription(s["endpoint"])
+        except Exception:
+            failed += 1
+
+    return {"sent": sent, "failed": failed}
+
+
+def process_late_pickup_reminders(send_push=True):
+    now = datetime.datetime.now()
+    reminders = []
+    logged_order_ids = []
+    with get_db_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT id, pickup_time
+            FROM orders
+            WHERE method = 'Pickup'
+              AND status = 'placed'
+              AND pickup_time IS NOT NULL
+              AND COALESCE(reminder_sent, 0) = 0
+            ORDER BY created_at ASC
+            """
+        ).fetchall()
+
+        for row in rows:
+            try:
+                pickup_dt = datetime.datetime.fromisoformat(row["pickup_time"])
+            except (TypeError, ValueError):
+                continue
+            if now < pickup_dt + datetime.timedelta(minutes=5):
+                continue
+
+            order_id = row["id"]
+            conn.execute("UPDATE orders SET reminder_sent = 1 WHERE id = ?", (order_id,))
+            msg = f"Order {order_id}: You may be late for pickup. Please let us know if you are still coming."
+            reminders.append({"order_id": order_id, "title": "Pickup Reminder", "message": msg})
+            logged_order_ids.append(order_id)
+
+        conn.commit()
+
+    for order_id in logged_order_ids:
+        log_event("pickup_late_reminder", {"message": "Customer may be late by 5+ minutes."}, order_id=order_id)
+
+    if send_push:
+        for reminder in reminders:
+            send_web_push_notification(reminder["order_id"], reminder["title"], reminder["message"])
+    return reminders
+
+
+def fetch_order_training_rows(limit=1000):
+    with get_db_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT
+                o.id,
+                o.created_at,
+                o.method,
+                o.status,
+                o.subtotal,
+                o.delivery_fee,
+                o.total,
+                o.pickup_time,
+                COUNT(oi.id) AS item_lines,
+                COALESCE(SUM(oi.qty), 0) AS total_qty,
+                COALESCE(SUM(oi.line_total), 0) AS basket_value
+            FROM orders o
+            LEFT JOIN order_items oi ON oi.order_id = o.id
+            GROUP BY o.id, o.created_at, o.method, o.status, o.subtotal, o.delivery_fee, o.total, o.pickup_time
+            ORDER BY o.created_at DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def fetch_cancellation_dataset(limit=2000):
+    with get_db_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT
+                o.id AS order_id,
+                o.created_at,
+                o.method,
+                o.subtotal,
+                o.delivery_fee,
+                o.total,
+                COUNT(oi.id) AS item_lines,
+                COALESCE(SUM(oi.qty), 0) AS total_qty,
+                CASE WHEN o.status = 'cancelled' THEN 1 ELSE 0 END AS cancelled_label
+            FROM orders o
+            LEFT JOIN order_items oi ON oi.order_id = o.id
+            GROUP BY o.id, o.created_at, o.method, o.subtotal, o.delivery_fee, o.total, o.status
+            ORDER BY o.created_at DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def fetch_recommendation_dataset(limit=5000):
+    with get_db_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT
+                o.id AS order_id,
+                COALESCE(CAST(o.user_id AS TEXT), 'guest') AS user_key,
+                oi.item AS product_name,
+                oi.qty,
+                oi.line_total
+            FROM orders o
+            JOIN order_items oi ON oi.order_id = o.id
+            WHERE o.status = 'placed'
+            ORDER BY o.created_at DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def fetch_demand_dataset(limit_days=60):
+    with get_db_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT
+                date(o.created_at) AS order_date,
+                strftime('%H', o.created_at) AS order_hour,
+                oi.item AS product_name,
+                SUM(oi.qty) AS qty_sum,
+                COUNT(DISTINCT o.id) AS order_count
+            FROM orders o
+            JOIN order_items oi ON oi.order_id = o.id
+            WHERE o.status = 'placed'
+              AND datetime(o.created_at) >= datetime('now', ?)
+            GROUP BY date(o.created_at), strftime('%H', o.created_at), oi.item
+            ORDER BY order_date DESC, order_hour DESC
+            """,
+            (f"-{limit_days} days",),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def fetch_nlp_dataset(limit=5000):
+    rows = fetch_event_logs(limit=limit)
+    samples = []
+    for row in rows:
+        if row["event_type"] != "chat_message":
+            continue
+        try:
+            payload = json.loads(row.get("payload_json") or "{}")
+        except json.JSONDecodeError:
+            payload = {}
+        raw = payload.get("raw_message", "")
+        normalized = payload.get("normalized_message", "")
+        if not raw:
+            continue
+        samples.append(
+            {
+                "event_id": row["id"],
+                "created_at": row["created_at"],
+                "session_user_id": row["session_user_id"],
+                "raw_message": raw,
+                "normalized_message": normalized,
+            }
+        )
+    return samples
+
+
+def fetch_late_pickup_dataset(limit=2000):
+    with get_db_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT
+                o.id AS order_id,
+                o.created_at,
+                o.pickup_time,
+                o.total,
+                o.status,
+                o.reminder_sent,
+                CASE WHEN o.reminder_sent = 1 THEN 1 ELSE 0 END AS late_label
+            FROM orders o
+            WHERE o.method = 'Pickup'
+            ORDER BY o.created_at DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def fetch_segmentation_dataset(limit=5000):
+    with get_db_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT
+                COALESCE(CAST(o.user_id AS TEXT), 'guest') AS user_key,
+                COUNT(DISTINCT o.id) AS total_orders,
+                AVG(o.total) AS avg_order_value,
+                SUM(o.total) AS lifetime_value,
+                SUM(CASE WHEN o.status = 'cancelled' THEN 1 ELSE 0 END) AS cancelled_orders
+            FROM orders o
+            GROUP BY COALESCE(CAST(o.user_id AS TEXT), 'guest')
+            ORDER BY total_orders DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def fetch_cancellation_summary(limit=200):
+    with get_db_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT
+                COALESCE(u.username, 'guest') AS customer,
+                COUNT(*) AS cancelled_orders,
+                MAX(o.created_at) AS last_cancelled_at
+            FROM orders o
+            LEFT JOIN users u ON u.id = o.user_id
+            WHERE o.status = 'cancelled'
+            GROUP BY COALESCE(u.username, 'guest')
+            ORDER BY cancelled_orders DESC, last_cancelled_at DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def cancel_order_for_session(order_id):
+    with get_db_connection() as conn:
+        row = conn.execute(
+            """
+            SELECT id, method, status
+            FROM orders
+            WHERE id = ?
+            """,
+            (order_id,),
+        ).fetchone()
+        if not row:
+            return False, "Order not found."
+        if row["status"] == "cancelled":
+            return False, "This order is already cancelled."
+        conn.execute("UPDATE orders SET status = 'cancelled' WHERE id = ?", (order_id,))
+        conn.commit()
+    return True, f"Order {order_id} cancelled successfully."
+
+
+def add_order_to_history(order_id):
+    history = session.get("order_history", [])
+    if order_id not in history:
+        history.append(order_id)
+    session["order_history"] = history[-30:]
+    session.modified = True
+
+
+def fetch_orders_for_history(order_ids, limit=10):
+    if not order_ids:
+        return []
+
+    selected = order_ids[-limit:]
+    placeholders = ",".join(["?"] * len(selected))
+    query = f"""
+        SELECT id, created_at, method, total, status
+        FROM orders
+        WHERE id IN ({placeholders})
+    """
+    with get_db_connection() as conn:
+        rows = conn.execute(query, tuple(selected)).fetchall()
+
+    rows_by_id = {r["id"]: r for r in rows}
+    ordered = []
+    for oid in reversed(selected):
+        r = rows_by_id.get(oid)
+        if r:
+            ordered.append(dict(r))
+    return ordered
+
+
+def fetch_orders_for_user_history(user_id, limit=10):
+    with get_db_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT id, created_at, method, total, status
+            FROM orders
+            WHERE user_id = ?
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,
+            (user_id, limit),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def resolve_cancellable_order_id():
+    last_order_id = session.get("last_order_id")
+    if last_order_id:
+        with get_db_connection() as conn:
+            row = conn.execute(
+                "SELECT id FROM orders WHERE id = ? AND status = 'placed'",
+                (last_order_id,),
+            ).fetchone()
+            if row:
+                return row["id"]
+
+    user_id = get_logged_in_user_id()
+    with get_db_connection() as conn:
+        if user_id:
+            row = conn.execute(
+                """
+                SELECT id
+                FROM orders
+                WHERE user_id = ? AND status = 'placed'
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                (user_id,),
+            ).fetchone()
+            if row:
+                return row["id"]
+
+        for oid in reversed(session.get("order_history", [])):
+            row = conn.execute(
+                "SELECT id FROM orders WHERE id = ? AND status = 'placed'",
+                (oid,),
+            ).fetchone()
+            if row:
+                return row["id"]
+
+        session_user_id = session.get("session_user_id")
+        if session_user_id:
+            row = conn.execute(
+                """
+                SELECT o.id
+                FROM orders o
+                JOIN event_logs e ON e.order_id = o.id
+                WHERE e.session_user_id = ?
+                  AND e.event_type = 'order_placed'
+                  AND o.status = 'placed'
+                ORDER BY o.created_at DESC
+                LIMIT 1
+                """,
+                (session_user_id,),
+            ).fetchone()
+            if row:
+                return row["id"]
+    return None
+
+
+def fetch_recent_orders(limit=100):
+    with get_db_connection() as conn:
+        orders = conn.execute(
+            """
+            SELECT o.id, o.created_at, o.method, o.address, o.subtotal, o.delivery_fee, o.total, o.status, u.username
+            FROM orders o
+            LEFT JOIN users u ON u.id = o.user_id
+            ORDER BY o.created_at DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+
+        order_rows = []
+        for row in orders:
+            items = conn.execute(
+                """
+                SELECT item, qty, unit, line_total
+                FROM order_items
+                WHERE order_id = ?
+                ORDER BY id ASC
+                """,
+                (row["id"],),
+            ).fetchall()
+            details = ", ".join(
+                f"{i['item'].title()} {format_qty(i['qty'])} {i['unit']} (Rs {i['line_total']})"
+                for i in items
+            )
+            order_rows.append(
+                {
+                    "id": row["id"],
+                    "time": row["created_at"],
+                    "method": row["method"],
+                    "address": row["address"] or "-",
+                    "subtotal": row["subtotal"],
+                    "delivery_fee": row["delivery_fee"],
+                    "total": row["total"],
+                    "status": row["status"] or "placed",
+                    "customer": row["username"] or "guest",
+                    "details": details or "-",
+                }
+            )
+    return order_rows
+
+
+def is_admin_authenticated():
+    return session.get("admin_authenticated", False)
+
+
+def validate_admin_password(password):
+    if ADMIN_PASSWORD_HASH:
+        return check_password_hash(ADMIN_PASSWORD_HASH, password)
+    if ADMIN_PASSWORD:
+        return password == ADMIN_PASSWORD
+    return False
+
+
+def require_admin_json():
+    if not is_admin_authenticated():
+        return jsonify({"error": "Unauthorized"}), 401
+    return None
+
+
+def normalize_text(text):
+    normalized = " ".join(text.lower().strip().split())
+    normalized = normalized.replace("half", "0.5").replace("aadha", "0.5")
+    for src, target in HINGLISH_MAP.items():
+        normalized = re.sub(rf"\b{re.escape(src)}\b", target, normalized)
+    return normalized
+
+
+def canonical_unit(unit_token):
+    if not unit_token:
+        return None
+    return UNIT_ALIASES.get(unit_token.lower().strip())
+
+
+def parse_item_request(message):
+    text = normalize_text(message)
+    text = re.sub(r"^add\s+", "", text).strip()
+
+    leading = re.match(
+        r"^(?P<qty>\d+(?:\.\d+)?)\s*(?P<unit>[a-zA-Z]+)?\s+(?P<item>.+)$", text
+    )
+    if leading:
+        qty = float(leading.group("qty"))
+        unit = canonical_unit(leading.group("unit"))
+        item = leading.group("item").strip()
+        return item, qty, unit
+
+    trailing = re.match(
+        r"^(?P<item>.+?)\s+(?P<qty>\d+(?:\.\d+)?)\s*(?P<unit>[a-zA-Z]+)?$", text
+    )
+    if trailing:
+        qty = float(trailing.group("qty"))
+        unit = canonical_unit(trailing.group("unit"))
+        item = trailing.group("item").strip()
+        return item, qty, unit
+
+    compact = re.match(
+        r"^(?P<item>.+?)\s+(?P<qty>\d+(?:\.\d+)?)(?P<unit>[a-zA-Z]+)$", text
+    )
+    if compact:
+        qty = float(compact.group("qty"))
+        unit = canonical_unit(compact.group("unit"))
+        item = compact.group("item").strip()
+        return item, qty, unit
+
+    return text, 1.0, None
+
+
+def convert_quantity_to_base(qty, input_unit, base_unit):
+    unit = input_unit or base_unit
+    if unit == base_unit:
+        return qty, None
+
+    if base_unit == "kg" and unit == "g":
+        return qty / 1000.0, None
+    if base_unit == "g" and unit == "kg":
+        return qty * 1000.0, None
+
+    if base_unit == "litre" and unit == "ml":
+        return qty / 1000.0, None
+    if base_unit == "ml" and unit == "litre":
+        return qty * 1000.0, None
+
+    if base_unit == "piece" and unit == "dozen":
+        return qty * 12.0, None
+    if base_unit == "dozen" and unit == "piece":
+        return qty / 12.0, None
+
+    return None, f"This item is sold in {base_unit}. You entered {unit}."
+
+
+def fetch_products(include_inactive=False):
+    with get_db_connection() as conn:
+        if include_inactive:
+            rows = conn.execute(
+                """
+                SELECT p.id, p.name, p.price_per_unit, p.base_unit, p.aliases, p.is_active, c.name AS category
+                FROM products p
+                JOIN categories c ON c.id = p.category_id
+                ORDER BY c.name, p.name
+                """
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                SELECT p.id, p.name, p.price_per_unit, p.base_unit, p.aliases, p.is_active, c.name AS category
+                FROM products p
+                JOIN categories c ON c.id = p.category_id
+                WHERE p.is_active = 1
+                ORDER BY c.name, p.name
+                """
+            ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def find_best_product_match(item_query, include_inactive=False):
+    products = fetch_products(include_inactive=include_inactive)
+    if not products:
+        return None
+
+    cleaned_query = normalize_text(item_query).replace("of ", "").strip()
+    alias_to_product = {}
+    terms = []
+
+    for p in products:
+        names = [p["name"]]
+        if p["aliases"]:
+            names.extend([a.strip() for a in p["aliases"].split(",") if a.strip()])
+        for token in names:
+            t = normalize_text(token)
+            alias_to_product[t] = p
+            terms.append(t)
+
+    if cleaned_query in alias_to_product:
+        return alias_to_product[cleaned_query]
+
+    match = get_close_matches(cleaned_query, terms, n=1, cutoff=0.62)
+    if match:
+        return alias_to_product[match[0]]
+    return None
+
+
+def looks_like_product_request(message, qty, unit):
+    if unit is not None:
+        return True
+    if qty != 1.0:
+        return True
+    if message.startswith("add "):
+        return True
+    if re.search(r"\d", message):
+        return True
+    return False
+
+
+def is_not_coming_message(message):
+    m = message.strip().lower()
+    exact = {
+        "no",
+        "nope",
+        "nah",
+        "not coming",
+        "i am not coming",
+        "im not coming",
+        "i amnt coming",
+        "can't come",
+        "cant come",
+        "will not come",
+        "wont come",
+    }
+    if m in exact:
+        return True
+    patterns = [
+        r"\bnot\s+coming\b",
+        r"\bi\s*am\s*nt\s*coming\b",
+        r"\bcan't\s+come\b",
+        r"\bcant\s+come\b",
+        r"\bwill\s+not\s+come\b",
+        r"\bwon't\s+come\b",
+    ]
+    return any(re.search(p, m) for p in patterns)
+
+
+def parse_remove_request(msg):
+    if "undo" in msg:
+        return {"mode": "last"}
+
+    match = re.search(r"\bremove\b(.*)$", msg)
+    if not match:
+        return {"mode": "last"}
+
+    payload = match.group(1).strip()
+    if not payload or payload in {"last", "previous"}:
+        return {"mode": "last"}
+
+    item_query, qty, unit = parse_item_request(payload)
+    return {"mode": "item", "item_query": item_query, "qty": qty, "unit": unit}
+
+
+def remove_item_from_cart(orders, product, qty_to_remove):
+    remaining = qty_to_remove
+    removed_qty = 0.0
+    removed_amount = 0
+
+    for idx in range(len(orders) - 1, -1, -1):
+        if remaining <= 1e-9:
+            break
+
+        row = orders[idx]
+        same_item = row.get("item_id") == product.get("id") or row.get("item") == product.get("name")
+        if not same_item:
+            continue
+
+        row_qty = float(row.get("qty", 0))
+        if row_qty <= 0:
+            continue
+
+        take = min(row_qty, remaining)
+        if abs(take - row_qty) <= 1e-9:
+            removed_amount += int(row.get("line_total", 0))
+            removed_qty += row_qty
+            remaining -= row_qty
+            orders.pop(idx)
+        else:
+            old_line_total = int(row.get("line_total", 0))
+            unit_price = row.get("price_per_unit")
+            if unit_price is None:
+                unit_price = old_line_total / row_qty
+            new_qty = row_qty - take
+            new_line_total = int(round(float(unit_price) * new_qty))
+            row["qty"] = new_qty
+            row["line_total"] = new_line_total
+            removed_amount += (old_line_total - new_line_total)
+            removed_qty += take
+            remaining -= take
+
+    return removed_qty, removed_amount
+
+
+def get_alternative_products(target_product, limit=3):
+    all_active = fetch_products(include_inactive=False)
+    if not all_active:
+        return []
+
+    same_category = [
+        p["name"]
+        for p in all_active
+        if p.get("category") == target_product.get("category") and p["id"] != target_product["id"]
+    ]
+    if same_category:
+        return same_category[:limit]
+
+    fallback = [p["name"] for p in all_active if p["id"] != target_product["id"]]
+    return fallback[:limit]
+
+
+def list_categories():
+    with get_db_connection() as conn:
+        rows = conn.execute("SELECT id, name FROM categories ORDER BY name").fetchall()
+    return [dict(r) for r in rows]
+
+
+def products_for_category(category_name):
+    with get_db_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT p.id, p.name, p.price_per_unit, p.base_unit
+            FROM products p
+            JOIN categories c ON c.id = p.category_id
+            WHERE lower(c.name) = ? AND p.is_active = 1
+            ORDER BY p.name
+            """,
+            (category_name.lower().strip(),),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
 
 @app.route("/")
-def home(): return render_template("index.html")
+def home():
+    return render_template("index.html")
 
-# --- ADD TO CONFIGURATION ---
-ADMIN_PASSWORD = "adminbot"
 
-# --- ADMIN ROUTE ---
+@app.route("/sw.js")
+def service_worker():
+    return send_from_directory("static", "sw.js")
+
+
+@app.route("/push/public-key", methods=["GET"])
+def push_public_key():
+    return jsonify({"publicKey": VAPID_PUBLIC_KEY, "enabled": is_web_push_configured()})
+
+
+@app.route("/push/subscribe", methods=["POST"])
+def push_subscribe():
+    payload = request.get_json(silent=True) or {}
+    subscription = payload.get("subscription") or payload
+    ok, message = upsert_push_subscription(subscription)
+    code = 200 if ok else 400
+    return jsonify({"status": "ok" if ok else "error", "message": message, "enabled": is_web_push_configured()}), code
+
+
+@app.route("/push/unsubscribe", methods=["POST"])
+def push_unsubscribe():
+    payload = request.get_json(silent=True) or {}
+    endpoint = payload.get("endpoint")
+    deactivate_push_subscription(endpoint)
+    return jsonify({"status": "ok"})
+
+
+@app.route("/internal/run-reminders", methods=["POST"])
+def internal_run_reminders():
+    auth_header = request.headers.get("X-Internal-Token", "")
+    if not CRON_SECRET or auth_header != CRON_SECRET:
+        return jsonify({"error": "Unauthorized"}), 401
+    reminders = process_late_pickup_reminders(send_push=True)
+    return jsonify({"processed": len(reminders)})
+
+
+@app.route("/auth/register", methods=["POST"])
+def auth_register():
+    payload = request.get_json(silent=True) or {}
+    username = (payload.get("username") or "").strip().lower()
+    password = payload.get("password") or ""
+
+    if not username or len(username) < 3:
+        return jsonify({"error": "Username must be at least 3 characters."}), 400
+    if len(password) < 6:
+        return jsonify({"error": "Password must be at least 6 characters."}), 400
+
+    created_at = datetime.datetime.now().isoformat(timespec="seconds")
+    password_hash = generate_password_hash(password)
+
+    try:
+        with get_db_connection() as conn:
+            cur = conn.execute(
+                """
+                INSERT INTO users (username, password_hash, created_at)
+                VALUES (?, ?, ?)
+                """,
+                (username, password_hash, created_at),
+            )
+            conn.commit()
+            user_id = cur.lastrowid
+    except sqlite3.IntegrityError:
+        return jsonify({"error": "Username already exists."}), 409
+
+    session["user_id"] = user_id
+    session["username"] = username
+    session.modified = True
+    log_event("user_registered", {"username": username})
+    return jsonify({"status": "registered", "user": {"id": user_id, "username": username}})
+
+
+@app.route("/auth/login", methods=["POST"])
+def auth_login():
+    payload = request.get_json(silent=True) or {}
+    username = (payload.get("username") or "").strip().lower()
+    password = payload.get("password") or ""
+
+    if not username or not password:
+        return jsonify({"error": "Username and password are required."}), 400
+
+    with get_db_connection() as conn:
+        user = conn.execute(
+            "SELECT id, username, password_hash FROM users WHERE username = ?",
+            (username,),
+        ).fetchone()
+
+    if not user or not check_password_hash(user["password_hash"], password):
+        return jsonify({"error": "Invalid credentials."}), 401
+
+    session["user_id"] = user["id"]
+    session["username"] = user["username"]
+    session.modified = True
+    log_event("user_logged_in", {"username": user["username"]})
+    return jsonify({"status": "logged_in", "user": {"id": user["id"], "username": user["username"]}})
+
+
+@app.route("/auth/logout", methods=["POST"])
+def auth_logout():
+    username = session.get("username")
+    session.pop("user_id", None)
+    session.pop("username", None)
+    session.modified = True
+    if username:
+        log_event("user_logged_out", {"username": username})
+    return jsonify({"status": "logged_out"})
+
+
+@app.route("/auth/me", methods=["GET"])
+def auth_me():
+    user_id = session.get("user_id")
+    username = session.get("username")
+    return jsonify({"authenticated": bool(user_id), "user": {"id": user_id, "username": username} if user_id else None})
+
+
+@app.route("/admin/login", methods=["GET", "POST"])
+def admin_login():
+    admin_configured = bool(ADMIN_PASSWORD_HASH or ADMIN_PASSWORD)
+    if request.method == "GET":
+        config_msg = "" if admin_configured else "<p class='error'>Admin password is not configured on server. Set ADMIN_PASSWORD or ADMIN_PASSWORD_HASH.</p>"
+        return """
+        <style>
+            body { font-family: sans-serif; padding: 32px; background: #f4f4f4; }
+            .card { max-width: 420px; margin: 0 auto; background: white; padding: 24px; border-radius: 8px; }
+            input, button { width: 100%; padding: 10px; margin-top: 10px; }
+            .error { color: #b00020; margin-top: 8px; }
+        </style>
+        <div class='card'>
+            <h2>Store Admin Login</h2>
+            <form method='POST'>
+                <label for='password'>Password</label>
+                <input id='password' name='password' type='password' required />
+                <button type='submit'>Login</button>
+            </form>
+            {config_msg}
+        </div>
+        """.replace("{config_msg}", config_msg)
+
+    password = request.form.get("password", "")
+    if validate_admin_password(password):
+        session["admin_authenticated"] = True
+        return redirect(url_for("admin_view"))
+
+    return """
+    <style>
+        body { font-family: sans-serif; padding: 32px; background: #f4f4f4; }
+        .card { max-width: 420px; margin: 0 auto; background: white; padding: 24px; border-radius: 8px; }
+        input, button { width: 100%; padding: 10px; margin-top: 10px; }
+        .error { color: #b00020; margin-top: 8px; }
+    </style>
+    <div class='card'>
+        <h2>Store Admin Login</h2>
+        <form method='POST'>
+            <label for='password'>Password</label>
+            <input id='password' name='password' type='password' required />
+            <button type='submit'>Login</button>
+        </form>
+        <p class='error'>Invalid password.</p>
+    </div>
+    """, 401
+
+
+@app.route("/admin/logout", methods=["POST"])
+def admin_logout():
+    session.pop("admin_authenticated", None)
+    return redirect(url_for("admin_login"))
+
+
 @app.route("/admin")
 def admin_view():
-    # Check for password in the URL: /admin?pw=store_admin_secret
-    pwd = request.args.get('pw')
-    if pwd != ADMIN_PASSWORD:
-        return "<h1>Unauthorized Access</h1>", 401
+    if not is_admin_authenticated():
+        return redirect(url_for("admin_login"))
 
-    html = """
+    orders = fetch_recent_orders(limit=200)
+    rows = "".join(
+        f"<tr><td>{escape(o['id'])}</td><td>{escape(o['customer'])}</td><td>{escape(o['time'])}</td><td>{escape(o['method'])}</td><td>{escape(o['address'])}</td><td>{escape(o['status'])}</td><td>Rs {o['subtotal']}</td><td>Rs {o['delivery_fee']}</td><td>Rs {o['total']}</td><td>{escape(o['details'])}</td></tr>"
+        for o in orders
+    )
+
+    return f"""
     <style>
-        body { font-family: sans-serif; padding: 20px; background: #f4f4f4; }
-        table { width: 100%; border-collapse: collapse; background: white; }
-        th, td { padding: 12px; border: 1px solid #ddd; text-align: left; }
-        th { background: #333; color: white; }
+        body {{ font-family: sans-serif; padding: 20px; background: #f4f4f4; }}
+        table {{ width: 100%; border-collapse: collapse; background: white; }}
+        th, td {{ padding: 12px; border: 1px solid #ddd; text-align: left; vertical-align: top; }}
+        th {{ background: #333; color: white; }}
+        .actions {{ display: flex; gap: 8px; margin-bottom: 12px; }}
+        .btn {{ padding: 8px 12px; border: 1px solid #333; background: white; cursor: pointer; }}
+        .hint {{ margin-top: 12px; color: #444; }}
     </style>
-    <h1>🏪 Store Admin - Recent Orders</h1>
+    <h1>Store Admin - Recent Orders</h1>
+    <div class='actions'>
+        <a class='btn' href='/'>Back to Chat</a>
+        <a class='btn' href='/admin/catalog'>Manage Catalog</a>
+        <form action='/admin/logout' method='POST'>
+            <button class='btn' type='submit'>Logout</button>
+        </form>
+    </div>
     <table>
-        <tr><th>ID</th><th>Time</th><th>Method</th><th>Total</th><th>Details</th></tr>
+        <tr><th>ID</th><th>Customer</th><th>Time</th><th>Method</th><th>Address</th><th>Status</th><th>Subtotal</th><th>Delivery Fee</th><th>Total</th><th>Details</th></tr>
+        {rows or "<tr><td colspan='10'>No orders yet.</td></tr>"}
+    </table>
+    <div class='hint'>
+        Catalog APIs: <code>/admin/api/catalog</code>, <code>/admin/api/categories</code>, <code>/admin/api/products</code>
+    </div>
     """
-    for o in reversed(all_orders):
-        html += f"<tr><td>{o['id']}</td><td>{o['time']}</td><td>{o['method']}</td><td>₹{o['total']}</td><td>{o['details']}</td></tr>"
-    return html + "</table><br><a href='/'>Go back to Chat</a>"
+
+
+@app.route("/admin/catalog")
+def admin_catalog_page():
+    if not is_admin_authenticated():
+        return redirect(url_for("admin_login"))
+    return render_template("admin_catalog.html")
+
+
+@app.route("/admin/api/catalog", methods=["GET"])
+def admin_catalog():
+    guard = require_admin_json()
+    if guard:
+        return guard
+
+    with get_db_connection() as conn:
+        categories = conn.execute("SELECT id, name FROM categories ORDER BY name").fetchall()
+        products = conn.execute(
+            """
+            SELECT id, category_id, name, price_per_unit, base_unit, aliases, is_active
+            FROM products
+            ORDER BY name
+            """
+        ).fetchall()
+
+    return jsonify(
+        {
+            "categories": [dict(c) for c in categories],
+            "products": [dict(p) for p in products],
+        }
+    )
+
+
+@app.route("/admin/api/categories", methods=["POST"])
+def create_category():
+    guard = require_admin_json()
+    if guard:
+        return guard
+
+    name = (request.get_json(silent=True) or {}).get("name", "").lower().strip()
+    if not name:
+        return jsonify({"error": "Category name is required."}), 400
+
+    try:
+        with get_db_connection() as conn:
+            cur = conn.execute("INSERT INTO categories(name) VALUES (?)", (name,))
+            conn.commit()
+        return jsonify({"id": cur.lastrowid, "name": name}), 201
+    except sqlite3.IntegrityError:
+        return jsonify({"error": "Category already exists."}), 409
+
+
+@app.route("/admin/api/categories/<int:category_id>", methods=["PUT"])
+def update_category(category_id):
+    guard = require_admin_json()
+    if guard:
+        return guard
+
+    name = (request.get_json(silent=True) or {}).get("name", "").lower().strip()
+    if not name:
+        return jsonify({"error": "Category name is required."}), 400
+
+    with get_db_connection() as conn:
+        exists = conn.execute("SELECT id FROM categories WHERE id = ?", (category_id,)).fetchone()
+        if not exists:
+            return jsonify({"error": "Category not found."}), 404
+        try:
+            conn.execute("UPDATE categories SET name = ? WHERE id = ?", (name, category_id))
+            conn.commit()
+        except sqlite3.IntegrityError:
+            return jsonify({"error": "Category name already in use."}), 409
+
+    return jsonify({"id": category_id, "name": name})
+
+
+@app.route("/admin/api/products", methods=["POST"])
+def create_product():
+    guard = require_admin_json()
+    if guard:
+        return guard
+
+    payload = request.get_json(silent=True) or {}
+    name = payload.get("name", "").lower().strip()
+    category_id = payload.get("category_id")
+    aliases = payload.get("aliases", "").lower().strip()
+    base_unit = canonical_unit(payload.get("base_unit", ""))
+
+    try:
+        price_per_unit = float(payload.get("price_per_unit", 0))
+    except (TypeError, ValueError):
+        return jsonify({"error": "price_per_unit must be numeric."}), 400
+
+    if not name or not category_id or not base_unit:
+        return jsonify({"error": "name, category_id, price_per_unit, base_unit are required."}), 400
+    if base_unit not in VALID_UNITS:
+        return jsonify({"error": f"Invalid base_unit. Use: {sorted(VALID_UNITS)}"}), 400
+    if price_per_unit <= 0:
+        return jsonify({"error": "price_per_unit must be greater than 0."}), 400
+
+    with get_db_connection() as conn:
+        exists = conn.execute("SELECT id FROM categories WHERE id = ?", (category_id,)).fetchone()
+        if not exists:
+            return jsonify({"error": "Category not found."}), 404
+        cur = conn.execute(
+            """
+            INSERT INTO products(category_id, name, price_per_unit, base_unit, aliases, is_active)
+            VALUES (?, ?, ?, ?, ?, 1)
+            """,
+            (category_id, name, price_per_unit, base_unit, aliases),
+        )
+        conn.commit()
+    return jsonify({"id": cur.lastrowid}), 201
+
+
+@app.route("/admin/api/products/<int:product_id>", methods=["PUT"])
+def update_product(product_id):
+    guard = require_admin_json()
+    if guard:
+        return guard
+
+    payload = request.get_json(silent=True) or {}
+    name = payload.get("name", "").lower().strip()
+    aliases = payload.get("aliases", "").lower().strip()
+    category_id = payload.get("category_id")
+    base_unit = canonical_unit(payload.get("base_unit", ""))
+
+    try:
+        price_per_unit = float(payload.get("price_per_unit", 0))
+    except (TypeError, ValueError):
+        return jsonify({"error": "price_per_unit must be numeric."}), 400
+
+    if not name or not category_id or not base_unit:
+        return jsonify({"error": "name, category_id, price_per_unit, base_unit are required."}), 400
+    if base_unit not in VALID_UNITS:
+        return jsonify({"error": f"Invalid base_unit. Use: {sorted(VALID_UNITS)}"}), 400
+    if price_per_unit <= 0:
+        return jsonify({"error": "price_per_unit must be greater than 0."}), 400
+
+    with get_db_connection() as conn:
+        exists = conn.execute("SELECT id FROM products WHERE id = ?", (product_id,)).fetchone()
+        if not exists:
+            return jsonify({"error": "Product not found."}), 404
+        cat = conn.execute("SELECT id FROM categories WHERE id = ?", (category_id,)).fetchone()
+        if not cat:
+            return jsonify({"error": "Category not found."}), 404
+        conn.execute(
+            """
+            UPDATE products
+            SET category_id = ?, name = ?, price_per_unit = ?, base_unit = ?, aliases = ?, is_active = 1
+            WHERE id = ?
+            """,
+            (category_id, name, price_per_unit, base_unit, aliases, product_id),
+        )
+        conn.commit()
+    return jsonify({"id": product_id})
+
+
+@app.route("/admin/api/products/<int:product_id>", methods=["DELETE"])
+def delete_product(product_id):
+    guard = require_admin_json()
+    if guard:
+        return guard
+
+    with get_db_connection() as conn:
+        exists = conn.execute("SELECT id FROM products WHERE id = ?", (product_id,)).fetchone()
+        if not exists:
+            return jsonify({"error": "Product not found."}), 404
+        conn.execute("UPDATE products SET is_active = 0 WHERE id = ?", (product_id,))
+        conn.commit()
+    return jsonify({"status": "deactivated", "id": product_id})
+
+
+@app.route("/admin/api/ml/events", methods=["GET"])
+def admin_ml_events():
+    guard = require_admin_json()
+    if guard:
+        return guard
+    limit = request.args.get("limit", default=500, type=int)
+    limit = max(1, min(limit, 5000))
+    return jsonify({"events": fetch_event_logs(limit=limit)})
+
+
+@app.route("/admin/api/ml/events.csv", methods=["GET"])
+def admin_ml_events_csv():
+    guard = require_admin_json()
+    if guard:
+        return guard
+    limit = request.args.get("limit", default=1000, type=int)
+    limit = max(1, min(limit, 10000))
+    rows = fetch_event_logs(limit=limit)
+
+    output = io.StringIO()
+    writer = csv.DictWriter(
+        output,
+        fieldnames=["id", "created_at", "event_type", "session_user_id", "user_id", "order_id", "payload_json"],
+    )
+    writer.writeheader()
+    for row in reversed(rows):
+        writer.writerow(row)
+
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=event_logs.csv"},
+    )
+
+
+@app.route("/admin/api/ml/orders", methods=["GET"])
+def admin_ml_orders():
+    guard = require_admin_json()
+    if guard:
+        return guard
+    limit = request.args.get("limit", default=1000, type=int)
+    limit = max(1, min(limit, 10000))
+    return jsonify({"orders": fetch_order_training_rows(limit=limit)})
+
+
+@app.route("/admin/api/ml/datasets/<dataset_name>", methods=["GET"])
+def admin_ml_dataset(dataset_name):
+    guard = require_admin_json()
+    if guard:
+        return guard
+
+    limit = request.args.get("limit", default=2000, type=int)
+    limit = max(1, min(limit, 20000))
+
+    if dataset_name == "cancellation":
+        return jsonify({"dataset": fetch_cancellation_dataset(limit=limit)})
+    if dataset_name == "recommendations":
+        return jsonify({"dataset": fetch_recommendation_dataset(limit=limit)})
+    if dataset_name == "demand":
+        days = request.args.get("days", default=60, type=int)
+        days = max(1, min(days, 365))
+        return jsonify({"dataset": fetch_demand_dataset(limit_days=days)})
+    if dataset_name == "nlp":
+        return jsonify({"dataset": fetch_nlp_dataset(limit=limit)})
+    if dataset_name == "late_pickup":
+        return jsonify({"dataset": fetch_late_pickup_dataset(limit=limit)})
+    if dataset_name == "segmentation":
+        return jsonify({"dataset": fetch_segmentation_dataset(limit=limit)})
+
+    return jsonify(
+        {
+            "error": "Unknown dataset. Use one of: cancellation, recommendations, demand, nlp, late_pickup, segmentation"
+        }
+    ), 404
+
+
+@app.route("/admin/api/cancellations", methods=["GET"])
+def admin_cancellations():
+    guard = require_admin_json()
+    if guard:
+        return guard
+    limit = request.args.get("limit", default=200, type=int)
+    limit = max(1, min(limit, 1000))
+    return jsonify({"cancellations": fetch_cancellation_summary(limit=limit)})
+
+
+@app.route("/notifications", methods=["GET"])
+def customer_notifications():
+    reminders = process_late_pickup_reminders(send_push=True)
+    order_id = session.get("last_order_id")
+    if not order_id:
+        return jsonify({"notifications": []})
+    own = [r for r in reminders if r["order_id"] == order_id]
+    if own:
+        return jsonify({"notifications": [{"title": own[0]["title"], "message": own[0]["message"]}]})
+    return jsonify({"notifications": []})
+
 
 @app.route("/get", methods=["POST"])
 def chat():
-    global total, orders
-    msg = request.json["message"].lower().strip()
-    order_id = f"GRC-{random.randint(1000, 9999)}"
-    timestamp = datetime.datetime.now().strftime("%I:%M %p")
+    req_json = request.get_json(silent=True) or {}
+    raw_message = req_json.get("message", "")
+    msg = normalize_text(raw_message)
+    log_event("chat_message", {"raw_message": raw_message, "normalized_message": msg})
+    process_late_pickup_reminders(send_push=True)
 
-    # --- 1. STATE: PICKUP vs DELIVERY CHOICE ---
-    if order_state["waiting_for_method"]:
+    state = get_user_state()
+    orders = state["orders"]
+    total = state["total"]
+
+    requested_language = detect_language_command(msg)
+    if requested_language:
+        state["language"] = requested_language
+        save_user_state(state)
+        labels = {"english": "English", "hindi": "Hindi", "hinglish": "Hinglish"}
+        log_event("language_changed", {"language": requested_language})
+        return jsonify({"reply": reply_text(state, f"Language changed to {labels[requested_language]}.", f"Bhasha {labels[requested_language]} me badal di gayi hai.", f"Language ab {labels[requested_language]} mode me set hai.")})
+
+    if any(phrase in msg for phrase in ["my orders", "past orders", "order history", "show orders"]):
+        user_id = get_logged_in_user_id()
+        if user_id:
+            orders_view = fetch_orders_for_user_history(user_id, limit=10)
+        else:
+            history_ids = session.get("order_history", [])
+            orders_view = fetch_orders_for_history(history_ids, limit=10)
+        if not orders_view:
+            return jsonify({"reply": "No past orders found yet."})
+        lines = "\n".join(
+            [
+                f"- {o['id']} | {o['created_at']} | {o['method']} | Rs {o['total']} | {o['status'] or 'placed'}"
+                for o in orders_view
+            ]
+        )
+        return jsonify({"reply": f"Your past orders:\n{lines}"})
+
+    if is_not_coming_message(msg):
+        cancel_order_id = resolve_cancellable_order_id()
+        if cancel_order_id:
+            ok, info = cancel_order_for_session(cancel_order_id)
+            if ok:
+                session["last_order_id"] = cancel_order_id
+                session.modified = True
+                log_event("order_cancelled_from_reminder", {"message": raw_message}, order_id=cancel_order_id)
+                return jsonify({"reply": f"Understood. {info}"})
+            return jsonify({"reply": info})
+        return jsonify({"reply": "Understood. If this is about your pickup, type 'cancel order'."})
+
+    if any(phrase in msg for phrase in ["cancel order", "cancel pickup", "cancel my order"]):
+        cancel_order_id = resolve_cancellable_order_id()
+        if not cancel_order_id:
+            log_event("cancel_order_failed", {"reason": "missing_recent_order"})
+            return jsonify({"reply": "I could not find an active order to cancel."})
+        ok, info = cancel_order_for_session(cancel_order_id)
+        if not ok:
+            log_event("cancel_order_failed", {"reason": info}, order_id=cancel_order_id)
+            return jsonify({"reply": info})
+        session["last_order_id"] = cancel_order_id
+        session.modified = True
+        log_event("order_cancelled", {"message": info}, order_id=cancel_order_id)
+        return jsonify({"reply": info})
+
+    if state["waiting_for_pickup_time"]:
+        pickup_dt, err = parse_pickup_time(raw_message)
+        if err:
+            return jsonify({"reply": err + " Example: 18:30"})
+        order_id = save_order_with_retry(
+            method="Pickup",
+            address="",
+            subtotal=total,
+            delivery_fee=0,
+            total=total,
+            items=orders,
+            pickup_time=pickup_dt.isoformat(timespec="minutes"),
+        )
+        session["last_order_id"] = order_id
+        add_order_to_history(order_id)
+        log_event(
+            "order_placed",
+            {"method": "Pickup", "total": total, "pickup_time": pickup_dt.isoformat(timespec="minutes")},
+            order_id=order_id,
+        )
+        clear_user_state()
+        return jsonify({"reply": reply_text(state, f"Pickup scheduled.\nOrder ID: {order_id}\nPickup Time: {pickup_dt.strftime('%H:%M')}\nTotal: Rs {total}", f"Pickup schedule ho gaya.\nOrder ID: {order_id}\nPickup Time: {pickup_dt.strftime('%H:%M')}\nKul: Rs {total}", f"Pickup schedule ho gaya.\nOrder ID: {order_id}\nPickup Time: {pickup_dt.strftime('%H:%M')}\nTotal: Rs {total}")})
+
+    if state["waiting_for_method"]:
         if "pickup" in msg:
-            order_state["waiting_for_method"] = False
-            # Save to Admin Database
-            all_orders.append({"id": order_id, "time": timestamp, "method": "Pickup", "total": total, "details": str(orders)})
-            res = (f"🥡 **Pickup Confirmed!**\nOrder ID: **{order_id}**\nTotal: ₹{total}\n\n📍 **Location:** {STORE_LOCATION}")
-            orders, total = [], 0
-            return jsonify({"reply": res})
-        
-        elif "delivery" in msg:
+            state["waiting_for_method"] = False
+            state["waiting_for_pickup_time"] = True
+            save_user_state(state)
+            return jsonify({"reply": reply_text(state, "Please enter your pickup time (HH:MM or HH:MM AM/PM).", "Pickup time likhiye (HH:MM ya HH:MM AM/PM).", "Pickup time likho (HH:MM ya HH:MM AM/PM).")})
+        if "delivery" in msg:
             if total < MIN_ORDER_FOR_DELIVERY:
-                return jsonify({"reply": f"⚠️ Delivery requires min ₹{MIN_ORDER_FOR_DELIVERY}. Total: ₹{total}. Add more or choose **'Pickup'**."})
-            order_state["waiting_for_method"], order_state["waiting_for_address"] = False, True
-            return jsonify({"reply": "🚚 **Delivery Selected.**\nPlease type your **Full Delivery Address**:"})
+                return jsonify({"reply": f"Delivery requires minimum Rs {MIN_ORDER_FOR_DELIVERY}. Current total: Rs {total}."})
+            state["waiting_for_method"] = False
+            state["waiting_for_address"] = True
+            save_user_state(state)
+            return jsonify({"reply": "Delivery selected. Please type your full delivery address."})
 
-    # --- 2. STATE: ADDRESS COLLECTION ---
-    if order_state["waiting_for_address"]:
-        order_state["waiting_for_address"] = False
-        address = request.json["message"]
+    if state["waiting_for_address"]:
+        address = raw_message.strip()
+        if not address:
+            return jsonify({"reply": "Please provide a valid delivery address."})
         fee = 0 if total >= MIN_FREE_DELIVERY else DELIVERY_FEE
         final_amt = total + fee
-        # Save to Admin Database
-        all_orders.append({"id": order_id, "time": timestamp, "method": f"Delivery to: {address}", "total": final_amt, "details": str(orders)})
-        res = (f"✅ **Order Placed!**\nOrder ID: **{order_id}**\nTotal: ₹{final_amt}\n📍 **Deliver to:** {address}")
-        orders, total = [], 0
-        return jsonify({"reply": res})
+        order_id = save_order_with_retry(
+            method="Delivery",
+            address=address,
+            subtotal=total,
+            delivery_fee=fee,
+            total=final_amt,
+            items=orders,
+        )
+        session["last_order_id"] = order_id
+        add_order_to_history(order_id)
+        log_event(
+            "order_placed",
+            {"method": "Delivery", "subtotal": total, "delivery_fee": fee, "total": final_amt},
+            order_id=order_id,
+        )
+        clear_user_state()
+        return jsonify({"reply": f"Order placed.\nOrder ID: {order_id}\nSubtotal: Rs {total}\nDelivery Fee: Rs {fee}\nTotal: Rs {final_amt}"})
 
-    # --- 3. COMMANDS: HELP, BILL, REMOVE ---
-    if "help" in msg:
-        return jsonify({"reply": "📖 **Guide:** 'Fruits' (Browse), 'Apple 2' (Add), 'Bill' (Cart), 'Confirm' (Pay)"})
+    if any(token in msg for token in ["help", "madad", "kya hai", "kya kar", "what can you do"]):
+        return jsonify(
+            {
+                "reply": reply_text(
+                    state,
+                    "Guide: 'Categories', 'Apple 2', 'Bill', 'Confirm'. For pickup, bot will ask pickup time (example: 18:30 or 6:30 PM). Remove item: 'remove apple 1kg'. Cancel placed order: 'cancel order'. Past orders: 'my orders'. Language: 'language english/hindi/hinglish'.",
+                    "Guide: 'Categories', 'Apple 2', 'Bill', 'Confirm'. Pickup ke liye bot aapse pickup time poochega (udaharan: 18:30 ya 6:30 PM). Item hatane ke liye: 'remove apple 1kg'. Order cancel: 'cancel order'. Purane orders: 'my orders'. Bhasha: 'language english/hindi/hinglish'.",
+                    "Guide: 'Categories', 'Apple 2', 'Bill', 'Confirm'. Pickup ke liye bot pickup time poochega (example: 18:30 ya 6:30 PM). Item remove: 'remove apple 1kg'. Order cancel: 'cancel order'. Past orders: 'my orders'. Language: 'language english/hindi/hinglish'.",
+                )
+            }
+        )
+
+    if "categories" in msg:
+        categories = list_categories()
+        names = ", ".join(c["name"].title() for c in categories)
+        return jsonify({"reply": f"Available categories: {names}"})
 
     if "remove" in msg or "undo" in msg:
-        if orders:
-            item, qty, price = orders.pop(); total -= price
-            return jsonify({"reply": f"🔄 Removed **{item.title()}**. New Total: ₹{total}"})
+        if not orders:
+            return jsonify({"reply": "Cart is already empty."})
+        remove_request = parse_remove_request(msg)
+        if remove_request["mode"] == "last":
+            removed = orders.pop()
+            total -= removed["line_total"]
+            state["orders"] = orders
+            state["total"] = total
+            save_user_state(state)
+            return jsonify({"reply": f"Removed {removed['item'].title()} {format_qty(removed['qty'])} {removed['unit']}. New total: Rs {total}"})
+        product = find_best_product_match(remove_request["item_query"], include_inactive=True)
+        if not product:
+            return jsonify({"reply": f"Could not find {remove_request['item_query']} in catalog."})
+        qty_in_base, err = convert_quantity_to_base(remove_request["qty"], remove_request["unit"], product["base_unit"])
+        if err:
+            return jsonify({"reply": err})
+        removed_qty, removed_amount = remove_item_from_cart(orders, product, qty_in_base)
+        if removed_qty <= 0:
+            return jsonify({"reply": f"{product['name'].title()} is not in your cart."})
+        total -= removed_amount
+        state["orders"] = orders
+        state["total"] = total
+        save_user_state(state)
+        return jsonify({"reply": f"Removed {product['name'].title()} {format_qty(removed_qty)} {product['base_unit']}. New total: Rs {total}"})
 
     if any(word in msg for word in ["bill", "total", "cart"]):
-        if not orders: return jsonify({"reply": "Cart empty!"})
-        items = "\n".join([f"• {i.title()} x{q} = ₹{p}" for i,q,p in orders])
-        return jsonify({"reply": f"🧾 **Cart:**\n{items}\n\n**Subtotal: ₹{total}**\nType 'Confirm' to pay."})
+        if not orders:
+            return jsonify({"reply": "Cart is empty."})
+        items = "\n".join([f"- {i['item'].title()} {format_qty(i['qty'])} {i['unit']} = Rs {i['line_total']}" for i in orders])
+        return jsonify({"reply": f"Cart:\n{items}\n\nSubtotal: Rs {total}\nType 'Confirm' to checkout."})
 
     if "confirm" in msg or "checkout" in msg:
-        if not orders: return jsonify({"reply": "Add items first!"})
-        order_state["waiting_for_method"] = True
-        return jsonify({"reply": f"🛒 **Select Method:**\n• **Pickup** (Free)\n• **Delivery** (Min ₹{MIN_ORDER_FOR_DELIVERY})"})
+        if not orders:
+            return jsonify({"reply": "Add items first."})
+        state["waiting_for_method"] = True
+        save_user_state(state)
+        return jsonify({"reply": "Select fulfillment method:\n- Pickup (Free)\n- Delivery"})
 
-    # --- 4. CATEGORIES & ORDERING ---
-    for category in store_data.keys():
-        if category in msg:
-            items = "\n".join([f"• {k.title()}: ₹{v}" for k,v in store_data[category].items()])
-            return jsonify({"reply": f"🛒 **{category.title()} Menu:**\n{items}"})
+    categories = list_categories()
+    for c in categories:
+        if c["name"] in msg:
+            menu = products_for_category(c["name"])
+            if not menu:
+                return jsonify({"reply": f"{c['name'].title()} has no active products yet."})
+            lines = "\n".join([f"- {p['name'].title()}: Rs {int(p['price_per_unit'])} / {p['base_unit']}" for p in menu])
+            return jsonify({"reply": f"{c['name'].title()} Menu:\n{lines}"})
 
-    words = msg.split()
-    if len(words) >= 2 and words[-1].isdigit():
-        item_query = " ".join(words[:-1]).replace("add ", "").strip()
-        match = get_close_matches(item_query, products.keys(), n=1, cutoff=0.6)
-        if match:
-            item = match[0]; qty = int(words[-1]); price = products[item] * qty
-            total += price; orders.append((item, qty, price))
-            return jsonify({"reply": f"✅ Added **{item.title()} x{qty}**. Total: ₹{total}"})
-        
+    item_query, qty, user_unit = parse_item_request(msg)
+    product = find_best_product_match(item_query, include_inactive=False)
+    if product:
+        if qty <= 0:
+            return jsonify({"reply": "Quantity must be greater than 0."})
+        qty_in_base, err = convert_quantity_to_base(qty, user_unit, product["base_unit"])
+        if err:
+            return jsonify({"reply": err})
+        line_total = int(round(float(product["price_per_unit"]) * qty_in_base))
+        orders.append({"item_id": product["id"], "item": product["name"], "qty": qty_in_base, "unit": product["base_unit"], "price_per_unit": float(product["price_per_unit"]), "line_total": line_total})
+        total += line_total
+        state["orders"] = orders
+        state["total"] = total
+        save_user_state(state)
+        log_event(
+            "cart_item_added",
+            {"item": product["name"], "qty_base": qty_in_base, "unit": product["base_unit"], "line_total": line_total, "cart_total": total},
+        )
+        return jsonify({"reply": f"Added {product['name'].title()} {format_qty(qty_in_base)} {product['base_unit']}. Total: Rs {total}"})
+
+    if looks_like_product_request(msg, qty, user_unit):
+        inactive_product = find_best_product_match(item_query, include_inactive=True)
+        if inactive_product and int(inactive_product.get("is_active", 1)) == 0:
+            alternatives = get_alternative_products(inactive_product, limit=3)
+            alt_text = ", ".join([a.title() for a in alternatives]) if alternatives else "No alternatives available"
+            return jsonify({"reply": f"{inactive_product['name'].title()} is currently not available. Suggested alternatives: {alt_text}."})
+        return jsonify({"reply": f"Sorry, {item_query.title()} is not available right now."})
+
     if any(word in msg for word in ["location", "where", "address"]):
-        return jsonify({"reply": f"📍 **Store Address:**\n{STORE_LOCATION}"})
+        return jsonify(
+            {
+                "reply": reply_text(
+                    state,
+                    f"Store Address:\n{STORE_LOCATION}",
+                    f"Store ka pata:\n{STORE_LOCATION}",
+                    f"Store address:\n{STORE_LOCATION}",
+                )
+            }
+        )
 
-    return jsonify({"reply": chatbot_response(msg)})
+    if get_language(state) == "english":
+        return jsonify({"reply": chatbot_response(msg)})
+    return jsonify(
+        {
+            "reply": reply_text(
+                state,
+                "I can help with categories, adding items, bill, checkout, order cancel, and order history. Type 'help'.",
+                "Main categories, item add karna, bill, checkout, order cancel aur order history me madad kar sakta hoon. 'help' type kijiye.",
+                "Main categories, item add, bill, checkout, cancel order aur order history me help kar sakta hoon. 'help' type karo.",
+            )
+        }
+    )
+
+
+init_db()
 
 if __name__ == "__main__":
-    # Get port from environment variable or default to 5000
     port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host="0.0.0.0", port=port)
+
+
