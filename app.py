@@ -1274,6 +1274,50 @@ def fetch_family_list(user_id):
     return grp, [dict(r) for r in rows]
 
 
+def add_family_list_to_cart(state, user_id):
+    group, rows = fetch_family_list(user_id)
+    if not group:
+        return False, "You are not in a family group yet."
+    if not rows:
+        return False, "Your family list is empty."
+
+    orders = state["orders"]
+    total = state["total"]
+    added = []
+
+    for r in rows:
+        product = find_best_product_match(r["item"], include_inactive=False)
+        if not product:
+            continue
+        qty = max(float(r.get("qty", 1.0)), 0.01)
+        qty_in_base, err = convert_quantity_to_base(qty, r.get("unit"), product["base_unit"])
+        if err:
+            continue
+        line_total = int(round(float(product["price_per_unit"]) * qty_in_base))
+        orders.append(
+            {
+                "item_id": product["id"],
+                "item": product["name"],
+                "qty": qty_in_base,
+                "unit": product["base_unit"],
+                "price_per_unit": float(product["price_per_unit"]),
+                "line_total": line_total,
+            }
+        )
+        total += line_total
+        added.append(product["name"])
+
+    if not added:
+        return False, "Family list items are not currently available in catalog."
+
+    state["orders"] = orders
+    state["total"] = total
+    state["last_item"] = added[-1]
+    state["pending_add"] = None
+    save_user_state(state)
+    return True, f"Added family list items to cart: {', '.join(a.title() for a in added)}. Total: Rs {total}"
+
+
 def normalize_item_key(item_name):
     key = normalize_text(item_name or "").strip()
     if key.endswith("es") and len(key) > 3:
@@ -2948,6 +2992,8 @@ def chat():
         payload = msg.replace("family add", "", 1).strip()
         item, qty, unit = parse_item_request(payload)
         ok, info = add_family_list_item(get_logged_in_user_id(), item=item, qty=qty, unit=unit)
+        if ok:
+            return jsonify({"reply": info + "\nTip: Family list is shared. To buy now, say 'add family list' or add specific cart items."})
         return jsonify({"reply": info})
 
     if msg.startswith("family remove"):
@@ -2997,6 +3043,10 @@ def chat():
         if not group:
             return jsonify({"reply": "You are not in a family group yet."})
         if not snapshot:
+            _, list_rows = fetch_family_list(get_logged_in_user_id())
+            if list_rows:
+                names = ", ".join(r["item"].title() for r in list_rows[:8])
+                return jsonify({"reply": f"No placed family orders yet for score prediction. Current shared list items: {names}. Place orders to unlock stock scores."})
             return jsonify({"reply": "Not enough family purchase history yet for stock scoring."})
         lines = []
         for s in snapshot:
@@ -3004,6 +3054,10 @@ def chat():
                 f"- {s['item'].title()}: {s['score']}% ({s['label']}) | last buy {format_since_days(s['days_since_last'])} | est cover {s['estimated_coverage_days']} days"
             )
         return jsonify({"reply": f"Family Stock Scoreboard ({group['name']}):\n" + "\n".join(lines)})
+
+    if msg in {"add family list", "add shared list"}:
+        ok, info = add_family_list_to_cart(state, get_logged_in_user_id())
+        return jsonify({"reply": info})
 
     family_stock_match = re.match(r"^\s*family\s+(?:stock|check)\s+(.+?)\s*$", msg)
     if family_stock_match:
@@ -3204,9 +3258,9 @@ def chat():
             {
                 "reply": reply_text(
                     state,
-                    "Guide: 'Categories', 'Apple 2', 'Bill', 'Confirm', 'budget 300 fruits'. Recipe: 'I am making pasta tonight' then tap Add All. Family: 'create family Home', 'join family FMXXXXXX', 'family add milk 2', 'family list', 'family orders', 'family check milk', 'family stock score'. Duplicate prevention: if recently bought, bot asks before adding unless you say 'add anyway'. Insights: 'monthly insights'. Pickup time formats: 18:30, 6:30 PM, tomorrow 10:30 AM.",
-                    "Guide: 'Categories', 'Apple 2', 'Bill', 'Confirm', 'budget 300 fruits'. Recipe: 'I am making pasta tonight' then tap Add All. Family: 'create family Home', 'join family FMXXXXXX', 'family add milk 2', 'family list', 'family orders', 'family check milk', 'family stock score'. Duplicate prevention: if recently bought, bot asks before adding unless you say 'add anyway'. Insights: 'monthly insights'. Pickup time formats: 18:30, 6:30 PM, tomorrow 10:30 AM.",
-                    "Guide: 'Categories', 'Apple 2', 'Bill', 'Confirm', 'budget 300 fruits'. Recipe: 'I am making pasta tonight' then tap Add All. Family: 'create family Home', 'join family FMXXXXXX', 'family add milk 2', 'family list', 'family orders', 'family check milk', 'family stock score'. Duplicate prevention: if recently bought, bot asks before adding unless you say 'add anyway'. Insights: 'monthly insights'. Pickup time formats: 18:30, 6:30 PM, tomorrow 10:30 AM.",
+                    "Guide: 'Categories', 'Apple 2', 'Bill', 'Confirm', 'budget 300 fruits'. Recipe: 'I am making pasta tonight' then tap Add All. Family: 'create family Home', 'join family FMXXXXXX', 'family add milk 2', 'family list', 'add family list', 'family orders', 'family check milk', 'family stock score'. Duplicate prevention: if recently bought, bot asks before adding unless you say 'add anyway'. Insights: 'monthly insights'. Pickup time formats: 18:30, 6:30 PM, tomorrow 10:30 AM.",
+                    "Guide: 'Categories', 'Apple 2', 'Bill', 'Confirm', 'budget 300 fruits'. Recipe: 'I am making pasta tonight' then tap Add All. Family: 'create family Home', 'join family FMXXXXXX', 'family add milk 2', 'family list', 'add family list', 'family orders', 'family check milk', 'family stock score'. Duplicate prevention: if recently bought, bot asks before adding unless you say 'add anyway'. Insights: 'monthly insights'. Pickup time formats: 18:30, 6:30 PM, tomorrow 10:30 AM.",
+                    "Guide: 'Categories', 'Apple 2', 'Bill', 'Confirm', 'budget 300 fruits'. Recipe: 'I am making pasta tonight' then tap Add All. Family: 'create family Home', 'join family FMXXXXXX', 'family add milk 2', 'family list', 'add family list', 'family orders', 'family check milk', 'family stock score'. Duplicate prevention: if recently bought, bot asks before adding unless you say 'add anyway'. Insights: 'monthly insights'. Pickup time formats: 18:30, 6:30 PM, tomorrow 10:30 AM.",
                 )
             }
         )
@@ -3256,6 +3310,9 @@ def chat():
 
     if "confirm" in msg or "checkout" in msg:
         if not orders:
+            group, list_rows = fetch_family_list(get_logged_in_user_id())
+            if group and list_rows:
+                return jsonify({"reply": "Cart is empty. You have items in family list. Say 'add family list' first, then 'confirm'."})
             return jsonify({"reply": "Add items first."})
         state["waiting_for_method"] = True
         save_user_state(state)

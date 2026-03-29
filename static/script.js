@@ -44,6 +44,11 @@ async function send() {
         const loadingNode = document.getElementById(loadingId);
         if (loadingNode) loadingNode.remove();
         if (!response.ok) {
+            if (response.status === 401) {
+                appendMessage('bot', 'Session expired. Please login again.');
+                await refreshAuthState();
+                return;
+            }
             appendMessage('bot', data.error || 'Authentication required. Please login or register.');
             return;
         }
