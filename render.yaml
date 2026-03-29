@@ -4,7 +4,7 @@ services:
     runtime: python
     plan: free # Ensures you stay on the free tier
     buildCommand: ./render-build.sh
-    startCommand: gunicorn app:app
+    startCommand: gunicorn wsgi:app
     envVars:
       - key: PORT
         value: 5000
