@@ -278,10 +278,12 @@ def init_db():
                 qty REAL NOT NULL DEFAULT 1,
                 unit TEXT,
                 added_by INTEGER,
+                last_updated_by INTEGER,
                 is_checked INTEGER NOT NULL DEFAULT 0,
                 updated_at TEXT NOT NULL,
                 FOREIGN KEY (group_id) REFERENCES family_groups(id) ON DELETE CASCADE,
-                FOREIGN KEY (added_by) REFERENCES users(id) ON DELETE SET NULL
+                FOREIGN KEY (added_by) REFERENCES users(id) ON DELETE SET NULL,
+                FOREIGN KEY (last_updated_by) REFERENCES users(id) ON DELETE SET NULL
             )
             """
         )
@@ -356,6 +358,7 @@ def init_db():
 
         ensure_column(conn, "products", "aliases", "TEXT DEFAULT ''")
         ensure_column(conn, "products", "is_active", "INTEGER NOT NULL DEFAULT 1")
+        ensure_column(conn, "family_list_items", "last_updated_by", "INTEGER")
         ensure_column(conn, "orders", "pickup_time", "TEXT")
         ensure_column(conn, "orders", "reminder_sent", "INTEGER NOT NULL DEFAULT 0")
         ensure_column(conn, "orders", "pickup_soon_sent", "INTEGER NOT NULL DEFAULT 0")
@@ -1172,16 +1175,16 @@ def add_family_list_item(user_id, item, qty=1.0, unit=None):
         ).fetchone()
         if row:
             conn.execute(
-                "UPDATE family_list_items SET qty = ?, updated_at = ?, is_checked = 0 WHERE id = ?",
-                (float(row["qty"]) + qty, now, int(row["id"])),
+                "UPDATE family_list_items SET qty = ?, updated_at = ?, is_checked = 0, last_updated_by = ? WHERE id = ?",
+                (float(row["qty"]) + qty, now, user_id, int(row["id"])),
             )
         else:
             conn.execute(
                 """
-                INSERT INTO family_list_items(group_id, item, qty, unit, added_by, is_checked, updated_at)
-                VALUES (?, ?, ?, ?, ?, 0, ?)
+                INSERT INTO family_list_items(group_id, item, qty, unit, added_by, last_updated_by, is_checked, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, 0, ?)
                 """,
-                (int(grp["id"]), item_name, qty, unit, user_id, now),
+                (int(grp["id"]), item_name, qty, unit, user_id, user_id, now),
             )
         conn.commit()
     return True, f"Added {format_qty(qty)} {unit or ''} {item_name.title()} to family list.".replace("  ", " ").strip()
@@ -1215,8 +1218,8 @@ def remove_family_list_item(user_id, item, qty=1.0):
             conn.execute("DELETE FROM family_list_items WHERE id = ?", (int(row["id"]),))
         else:
             conn.execute(
-                "UPDATE family_list_items SET qty = ?, updated_at = ? WHERE id = ?",
-                (remaining, datetime.datetime.now().isoformat(timespec="seconds"), int(row["id"])),
+                "UPDATE family_list_items SET qty = ?, updated_at = ?, last_updated_by = ? WHERE id = ?",
+                (remaining, datetime.datetime.now().isoformat(timespec="seconds"), user_id, int(row["id"])),
             )
         conn.commit()
     return True, f"Updated family list for {item_name.title()}."
@@ -1229,9 +1232,16 @@ def fetch_family_list(user_id):
     with get_db_connection() as conn:
         rows = conn.execute(
             """
-            SELECT fli.item, fli.qty, fli.unit, fli.updated_at, u.username AS added_by
+            SELECT
+                fli.item,
+                fli.qty,
+                fli.unit,
+                fli.updated_at,
+                ua.username AS added_by,
+                uu.username AS last_updated_by
             FROM family_list_items fli
-            LEFT JOIN users u ON u.id = fli.added_by
+            LEFT JOIN users ua ON ua.id = fli.added_by
+            LEFT JOIN users uu ON uu.id = fli.last_updated_by
             WHERE fli.group_id = ? AND COALESCE(fli.is_checked, 0) = 0
             ORDER BY fli.updated_at DESC, fli.item ASC
             """,
@@ -1247,6 +1257,17 @@ def normalize_item_key(item_name):
     elif key.endswith("s") and len(key) > 2:
         key = key[:-1]
     return key
+
+
+def format_since_days(days):
+    d = max(float(days), 0.0)
+    if d < (1.0 / 24.0):
+        return "just now"
+    if d < 1.0:
+        hours = max(1, int(round(d * 24.0)))
+        return f"{hours} hour{'s' if hours != 1 else ''} ago"
+    whole = int(round(d))
+    return f"{whole} day{'s' if whole != 1 else ''} ago"
 
 
 def fetch_family_order_timeline(user_id, limit=25):
@@ -1315,7 +1336,7 @@ def build_family_duplicate_hint(user_id, item_name, lookback_days=7):
     if estimate:
         estimate_line = (
             f"\nEstimated stock left: {estimate['score']}% ({estimate['label']})"
-            f" | last bought {estimate['days_since_last']} days ago."
+            f" | last bought {format_since_days(estimate['days_since_last'])}."
         )
     lines = []
     for r in recent:
@@ -2917,10 +2938,17 @@ def chat():
             return jsonify({"reply": "You are not in a family group yet."})
         if not rows:
             return jsonify({"reply": f"Family list for {group['name']} is empty."})
-        lines = "\n".join(
-            [f"- {r['item'].title()} {format_qty(r['qty'])} {r['unit'] or ''} (by {r.get('added_by') or 'member'})".replace("  ", " ").strip() for r in rows]
-        )
-        return jsonify({"reply": f"Shared Family List ({group['name']}):\n{lines}"})
+        lines = []
+        for r in rows:
+            item_text = f"- {r['item'].title()} {format_qty(r['qty'])} {r['unit'] or ''}".replace("  ", " ").strip()
+            added_by = r.get("added_by") or "member"
+            updated_by = r.get("last_updated_by") or added_by
+            if updated_by != added_by:
+                item_text += f" (added by {added_by}, updated by {updated_by})"
+            else:
+                item_text += f" (by {added_by})"
+            lines.append(item_text)
+        return jsonify({"reply": f"Shared Family List ({group['name']}):\n" + "\n".join(lines)})
 
     if msg in {"family orders", "family history", "shared history"}:
         group, rows = fetch_family_order_timeline(get_logged_in_user_id(), limit=30)
@@ -2949,7 +2977,7 @@ def chat():
         lines = []
         for s in snapshot:
             lines.append(
-                f"- {s['item'].title()}: {s['score']}% ({s['label']}) | last buy {s['days_since_last']} days ago | est cover {s['estimated_coverage_days']} days"
+                f"- {s['item'].title()}: {s['score']}% ({s['label']}) | last buy {format_since_days(s['days_since_last'])} | est cover {s['estimated_coverage_days']} days"
             )
         return jsonify({"reply": f"Family Stock Scoreboard ({group['name']}):\n" + "\n".join(lines)})
 
@@ -2974,6 +3002,7 @@ def chat():
         if estimate:
             est_text = (
                 f"\n\nEstimated stock left: {estimate['score']}% ({estimate['label']})"
+                f"\nLast buy: {format_since_days(estimate['days_since_last'])}"
                 f"\nBased on recent usage over ~{estimate['samples']} purchase records."
             )
         return jsonify({"reply": f"Recent family purchases for {query_item.title()}:\n" + "\n".join(lines) + est_text})
