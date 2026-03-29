@@ -5,3 +5,4 @@ gunicorn
 pywebpush
 numpy
 pandas
+libsql

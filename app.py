@@ -17,6 +17,10 @@ import threading
 import time
 from pathlib import Path
 try:
+    import libsql  # Turso/libSQL client (optional)
+except Exception:
+    libsql = None
+try:
     from pywebpush import WebPushException, webpush
 except Exception:  # pragma: no cover - optional dependency at runtime
     WebPushException = Exception
@@ -58,6 +62,8 @@ MIN_FREE_DELIVERY = 500
 MIN_ORDER_FOR_DELIVERY = 200
 
 DB_PATH = os.getenv("DATABASE_PATH", "orders.db")
+TURSO_DATABASE_URL = os.getenv("TURSO_DATABASE_URL") or os.getenv("LIBSQL_URL")
+TURSO_AUTH_TOKEN = os.getenv("TURSO_AUTH_TOKEN") or os.getenv("LIBSQL_AUTH_TOKEN")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
 ADMIN_PASSWORD_HASH = os.getenv("ADMIN_PASSWORD_HASH")
 LOCAL_DEV_ADMIN_PASSWORD = os.getenv("LOCAL_DEV_ADMIN_PASSWORD", "adminbot")
@@ -183,6 +189,24 @@ def detect_language_command(msg):
 
 
 def get_db_connection():
+    if TURSO_DATABASE_URL and TURSO_AUTH_TOKEN:
+        if libsql is None:
+            raise RuntimeError(
+                "Turso is configured but libsql package is missing. Add `libsql` to requirements."
+            )
+        # Embedded replica mode: local file for cache, remote primary for persistence.
+        conn = libsql.connect(
+            DB_PATH,
+            sync_url=TURSO_DATABASE_URL,
+            auth_token=TURSO_AUTH_TOKEN,
+            sync_interval=30,
+        )
+        try:
+            conn.row_factory = sqlite3.Row
+        except Exception:
+            pass
+        return conn
+
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
