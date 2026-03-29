@@ -2680,6 +2680,8 @@ def create_category():
         return jsonify({"id": cur.lastrowid, "name": name}), 201
     except sqlite3.IntegrityError:
         return jsonify({"error": "Category already exists."}), 409
+    except Exception as exc:
+        return jsonify({"error": f"Could not create category: {str(exc)}"}), 500
 
 
 @app.route("/admin/api/categories/<int:category_id>", methods=["PUT"])
@@ -2692,15 +2694,18 @@ def update_category(category_id):
     if not name:
         return jsonify({"error": "Category name is required."}), 400
 
-    with get_db_connection() as conn:
-        exists = conn.execute("SELECT id FROM categories WHERE id = ?", (category_id,)).fetchone()
-        if not exists:
-            return jsonify({"error": "Category not found."}), 404
-        try:
-            conn.execute("UPDATE categories SET name = ? WHERE id = ?", (name, category_id))
-            conn.commit()
-        except sqlite3.IntegrityError:
-            return jsonify({"error": "Category name already in use."}), 409
+    try:
+        with get_db_connection() as conn:
+            exists = conn.execute("SELECT id FROM categories WHERE id = ?", (category_id,)).fetchone()
+            if not exists:
+                return jsonify({"error": "Category not found."}), 404
+            try:
+                conn.execute("UPDATE categories SET name = ? WHERE id = ?", (name, category_id))
+                conn.commit()
+            except sqlite3.IntegrityError:
+                return jsonify({"error": "Category name already in use."}), 409
+    except Exception as exc:
+        return jsonify({"error": f"Could not update category: {str(exc)}"}), 500
 
     return jsonify({"id": category_id, "name": name})
 
@@ -2729,18 +2734,21 @@ def create_product():
     if price_per_unit <= 0:
         return jsonify({"error": "price_per_unit must be greater than 0."}), 400
 
-    with get_db_connection() as conn:
-        exists = conn.execute("SELECT id FROM categories WHERE id = ?", (category_id,)).fetchone()
-        if not exists:
-            return jsonify({"error": "Category not found."}), 404
-        cur = conn.execute(
-            """
-            INSERT INTO products(category_id, name, price_per_unit, base_unit, aliases, is_active)
-            VALUES (?, ?, ?, ?, ?, 1)
-            """,
-            (category_id, name, price_per_unit, base_unit, aliases),
-        )
-        conn.commit()
+    try:
+        with get_db_connection() as conn:
+            exists = conn.execute("SELECT id FROM categories WHERE id = ?", (category_id,)).fetchone()
+            if not exists:
+                return jsonify({"error": "Category not found."}), 404
+            cur = conn.execute(
+                """
+                INSERT INTO products(category_id, name, price_per_unit, base_unit, aliases, is_active)
+                VALUES (?, ?, ?, ?, ?, 1)
+                """,
+                (category_id, name, price_per_unit, base_unit, aliases),
+            )
+            conn.commit()
+    except Exception as exc:
+        return jsonify({"error": f"Could not create product: {str(exc)}"}), 500
     return jsonify({"id": cur.lastrowid}), 201
 
 
