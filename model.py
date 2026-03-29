@@ -1,12 +1,9 @@
 import json
 import random
-import nltk
-import numpy as np
 
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.naive_bayes import MultinomialNB
 
-nltk.download('punkt')
 with open("intents.json", encoding="utf-8") as file:
     data = json.load(file)
 

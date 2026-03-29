@@ -122,30 +122,166 @@ HINGLISH_MAP = {
     "mirchi": "chilli",
     "dhaniya": "coriander",
     "adrak": "ginger",
+    "matar": "peas",
+    "bhindi": "okra",
+    "baingan": "brinjal",
+    "baigan": "brinjal",
+    "karela": "bitter gourd",
+    "dahi": "curd",
+    "chaas": "buttermilk",
 }
 
 DEFAULT_CATALOG = {
     "fruits": [
         {"name": "apple", "price_per_unit": 120, "base_unit": "kg", "aliases": "seb"},
         {"name": "banana", "price_per_unit": 60, "base_unit": "dozen", "aliases": "kela"},
+        {"name": "grapes", "price_per_unit": 90, "base_unit": "kg", "aliases": "angoor"},
+        {"name": "kiwi", "price_per_unit": 240, "base_unit": "kg", "aliases": ""},
+        {"name": "dragon fruit", "price_per_unit": 220, "base_unit": "kg", "aliases": "pitaya"},
+        {"name": "chikoo", "price_per_unit": 70, "base_unit": "kg", "aliases": "sapota"},
+        {"name": "papaya", "price_per_unit": 50, "base_unit": "kg", "aliases": "papita"},
+        {"name": "watermelon", "price_per_unit": 35, "base_unit": "kg", "aliases": "tarbooj"},
+        {"name": "pomegranate", "price_per_unit": 180, "base_unit": "kg", "aliases": "anar"},
+        {"name": "guava", "price_per_unit": 80, "base_unit": "kg", "aliases": "amrood"},
+        {"name": "pineapple", "price_per_unit": 90, "base_unit": "piece", "aliases": "ananas"},
         {"name": "orange", "price_per_unit": 80, "base_unit": "kg", "aliases": ""},
-        {"name": "mango", "price_per_unit": 150, "base_unit": "kg", "aliases": ""},
+        {"name": "mango", "price_per_unit": 150, "base_unit": "kg", "aliases": "aam"},
     ],
     "vegetables": [
         {"name": "potato", "price_per_unit": 40, "base_unit": "kg", "aliases": "aloo"},
         {"name": "tomato", "price_per_unit": 50, "base_unit": "kg", "aliases": "tamatar"},
         {"name": "carrot", "price_per_unit": 60, "base_unit": "kg", "aliases": "gajar"},
         {"name": "onion", "price_per_unit": 30, "base_unit": "kg", "aliases": "pyaz,pyaaz"},
-    ],
-    "snacks": [
-        {"name": "biscuits", "price_per_unit": 30, "base_unit": "packet", "aliases": "biscuit"},
-        {"name": "chips", "price_per_unit": 20, "base_unit": "packet", "aliases": ""},
-        {"name": "chocolate", "price_per_unit": 50, "base_unit": "piece", "aliases": ""},
+        {"name": "peas", "price_per_unit": 90, "base_unit": "kg", "aliases": "matar"},
+        {"name": "okra", "price_per_unit": 70, "base_unit": "kg", "aliases": "bhindi"},
+        {"name": "brinjal", "price_per_unit": 60, "base_unit": "kg", "aliases": "baingan,baigan"},
+        {"name": "bitter gourd", "price_per_unit": 70, "base_unit": "kg", "aliases": "karela"},
+        {"name": "cauliflower", "price_per_unit": 55, "base_unit": "kg", "aliases": "phool gobi"},
+        {"name": "cabbage", "price_per_unit": 45, "base_unit": "kg", "aliases": "patta gobi"},
+        {"name": "capsicum", "price_per_unit": 90, "base_unit": "kg", "aliases": "shimla mirch"},
+        {"name": "cucumber", "price_per_unit": 40, "base_unit": "kg", "aliases": "kheera"},
+        {"name": "spinach", "price_per_unit": 30, "base_unit": "kg", "aliases": "palak"},
+        {"name": "bottle gourd", "price_per_unit": 35, "base_unit": "kg", "aliases": "lauki"},
+        {"name": "green chilli", "price_per_unit": 120, "base_unit": "kg", "aliases": "hari mirch"},
+        {"name": "ginger", "price_per_unit": 140, "base_unit": "kg", "aliases": "adrak"},
+        {"name": "garlic", "price_per_unit": 160, "base_unit": "kg", "aliases": "lahsun"},
+        {"name": "coriander", "price_per_unit": 20, "base_unit": "packet", "aliases": "dhaniya"},
     ],
     "dairy": [
         {"name": "milk", "price_per_unit": 60, "base_unit": "litre", "aliases": "doodh"},
+        {"name": "amul milk", "price_per_unit": 62, "base_unit": "litre", "aliases": ""},
+        {"name": "mother dairy milk", "price_per_unit": 61, "base_unit": "litre", "aliases": ""},
+        {"name": "toned milk", "price_per_unit": 58, "base_unit": "litre", "aliases": ""},
+        {"name": "curd", "price_per_unit": 40, "base_unit": "piece", "aliases": "dahi"},
+        {"name": "dahi", "price_per_unit": 40, "base_unit": "piece", "aliases": "curd"},
+        {"name": "chaas", "price_per_unit": 25, "base_unit": "piece", "aliases": "buttermilk"},
+        {"name": "paneer", "price_per_unit": 95, "base_unit": "piece", "aliases": ""},
         {"name": "cheese", "price_per_unit": 120, "base_unit": "piece", "aliases": ""},
         {"name": "butter", "price_per_unit": 100, "base_unit": "piece", "aliases": ""},
+        {"name": "ghee", "price_per_unit": 340, "base_unit": "litre", "aliases": ""},
+        {"name": "lassi", "price_per_unit": 30, "base_unit": "piece", "aliases": ""},
+    ],
+    "biscuits": [
+        {"name": "biscuits", "price_per_unit": 30, "base_unit": "packet", "aliases": "biscuit"},
+        {"name": "parle g", "price_per_unit": 5, "base_unit": "packet", "aliases": "parle"},
+        {"name": "monaco", "price_per_unit": 10, "base_unit": "packet", "aliases": ""},
+        {"name": "good day", "price_per_unit": 30, "base_unit": "packet", "aliases": ""},
+        {"name": "marie gold", "price_per_unit": 35, "base_unit": "packet", "aliases": "marie"},
+        {"name": "bourbon", "price_per_unit": 35, "base_unit": "packet", "aliases": ""},
+        {"name": "krackjack", "price_per_unit": 30, "base_unit": "packet", "aliases": ""},
+        {"name": "oreo", "price_per_unit": 40, "base_unit": "packet", "aliases": ""},
+        {"name": "hide and seek", "price_per_unit": 35, "base_unit": "packet", "aliases": "hide n seek"},
+    ],
+    "chocolates": [
+        {"name": "chocolate", "price_per_unit": 50, "base_unit": "piece", "aliases": ""},
+        {"name": "cadbury dairy milk", "price_per_unit": 40, "base_unit": "piece", "aliases": "dairy milk"},
+        {"name": "5 star", "price_per_unit": 10, "base_unit": "piece", "aliases": "five star"},
+        {"name": "amul dark chocolate", "price_per_unit": 120, "base_unit": "piece", "aliases": "amul dark"},
+        {"name": "kitkat", "price_per_unit": 20, "base_unit": "piece", "aliases": ""},
+        {"name": "munch", "price_per_unit": 10, "base_unit": "piece", "aliases": ""},
+        {"name": "perk", "price_per_unit": 10, "base_unit": "piece", "aliases": ""},
+        {"name": "fuse", "price_per_unit": 30, "base_unit": "piece", "aliases": ""},
+    ],
+    "toffees": [
+        {"name": "toffee", "price_per_unit": 1, "base_unit": "piece", "aliases": "candy"},
+        {"name": "eclairs", "price_per_unit": 1, "base_unit": "piece", "aliases": ""},
+        {"name": "melody", "price_per_unit": 1, "base_unit": "piece", "aliases": ""},
+        {"name": "kismi", "price_per_unit": 1, "base_unit": "piece", "aliases": ""},
+        {"name": "pulse candy", "price_per_unit": 2, "base_unit": "piece", "aliases": "pulse"},
+        {"name": "mango bite", "price_per_unit": 1, "base_unit": "piece", "aliases": ""},
+        {"name": "alpenliebe", "price_per_unit": 2, "base_unit": "piece", "aliases": ""},
+        {"name": "parle poppins", "price_per_unit": 5, "base_unit": "piece", "aliases": "poppins"},
+        {"name": "coffee bite", "price_per_unit": 2, "base_unit": "piece", "aliases": ""},
+    ],
+    "snacks": [
+        {"name": "chips", "price_per_unit": 20, "base_unit": "packet", "aliases": ""},
+        {"name": "lays chips", "price_per_unit": 20, "base_unit": "packet", "aliases": "lays"},
+        {"name": "kurkure", "price_per_unit": 20, "base_unit": "packet", "aliases": ""},
+        {"name": "bingo chips", "price_per_unit": 20, "base_unit": "packet", "aliases": "bingo"},
+        {"name": "wafers", "price_per_unit": 20, "base_unit": "packet", "aliases": ""},
+        {"name": "nachos", "price_per_unit": 50, "base_unit": "packet", "aliases": ""},
+        {"name": "namkeen", "price_per_unit": 30, "base_unit": "packet", "aliases": "mixture"},
+        {"name": "sev", "price_per_unit": 30, "base_unit": "packet", "aliases": ""},
+        {"name": "bhujia", "price_per_unit": 35, "base_unit": "packet", "aliases": ""},
+        {"name": "makhana", "price_per_unit": 110, "base_unit": "packet", "aliases": "fox nuts"},
+        {"name": "popcorn", "price_per_unit": 30, "base_unit": "packet", "aliases": ""},
+    ],
+    "staples": [
+        {"name": "wheat flour", "price_per_unit": 45, "base_unit": "kg", "aliases": "atta,aata"},
+        {"name": "rice", "price_per_unit": 70, "base_unit": "kg", "aliases": "chawal"},
+        {"name": "basmati rice", "price_per_unit": 120, "base_unit": "kg", "aliases": ""},
+        {"name": "poha", "price_per_unit": 60, "base_unit": "kg", "aliases": ""},
+        {"name": "suji", "price_per_unit": 50, "base_unit": "kg", "aliases": "rava"},
+        {"name": "besan", "price_per_unit": 80, "base_unit": "kg", "aliases": "gram flour"},
+        {"name": "sugar", "price_per_unit": 48, "base_unit": "kg", "aliases": "chini"},
+        {"name": "salt", "price_per_unit": 24, "base_unit": "kg", "aliases": "namak"},
+        {"name": "mustard oil", "price_per_unit": 190, "base_unit": "litre", "aliases": "sarson tel"},
+        {"name": "sunflower oil", "price_per_unit": 170, "base_unit": "litre", "aliases": ""},
+        {"name": "groundnut oil", "price_per_unit": 185, "base_unit": "litre", "aliases": "peanut oil"},
+        {"name": "tea", "price_per_unit": 120, "base_unit": "packet", "aliases": "chai patti"},
+    ],
+    "pulses": [
+        {"name": "toor dal", "price_per_unit": 140, "base_unit": "kg", "aliases": "arhar dal"},
+        {"name": "moong dal", "price_per_unit": 130, "base_unit": "kg", "aliases": ""},
+        {"name": "masoor dal", "price_per_unit": 110, "base_unit": "kg", "aliases": ""},
+        {"name": "chana dal", "price_per_unit": 95, "base_unit": "kg", "aliases": ""},
+        {"name": "urad dal", "price_per_unit": 125, "base_unit": "kg", "aliases": ""},
+        {"name": "rajma", "price_per_unit": 150, "base_unit": "kg", "aliases": ""},
+        {"name": "chole", "price_per_unit": 105, "base_unit": "kg", "aliases": "kabuli chana"},
+        {"name": "black chana", "price_per_unit": 90, "base_unit": "kg", "aliases": "kala chana"},
+    ],
+    "spices": [
+        {"name": "turmeric powder", "price_per_unit": 35, "base_unit": "packet", "aliases": "haldi"},
+        {"name": "red chilli powder", "price_per_unit": 45, "base_unit": "packet", "aliases": "lal mirch"},
+        {"name": "coriander powder", "price_per_unit": 40, "base_unit": "packet", "aliases": "dhaniya powder"},
+        {"name": "cumin", "price_per_unit": 55, "base_unit": "packet", "aliases": "jeera"},
+        {"name": "garam masala", "price_per_unit": 60, "base_unit": "packet", "aliases": ""},
+        {"name": "mustard seeds", "price_per_unit": 35, "base_unit": "packet", "aliases": "rai"},
+        {"name": "ajwain", "price_per_unit": 30, "base_unit": "packet", "aliases": "carom seeds"},
+        {"name": "hing", "price_per_unit": 30, "base_unit": "packet", "aliases": "asafoetida"},
+        {"name": "black pepper", "price_per_unit": 80, "base_unit": "packet", "aliases": "kali mirch"},
+        {"name": "kasuri methi", "price_per_unit": 30, "base_unit": "packet", "aliases": ""},
+    ],
+    "beverages": [
+        {"name": "tea", "price_per_unit": 120, "base_unit": "packet", "aliases": "chai patti"},
+        {"name": "coffee", "price_per_unit": 180, "base_unit": "packet", "aliases": ""},
+        {"name": "fruit juice", "price_per_unit": 110, "base_unit": "piece", "aliases": "juice"},
+        {"name": "soft drink", "price_per_unit": 45, "base_unit": "piece", "aliases": "cold drink"},
+        {"name": "mineral water", "price_per_unit": 20, "base_unit": "piece", "aliases": "water bottle"},
+        {"name": "energy drink", "price_per_unit": 125, "base_unit": "piece", "aliases": ""},
+    ],
+    "bakery": [
+        {"name": "bread", "price_per_unit": 45, "base_unit": "piece", "aliases": ""},
+        {"name": "brown bread", "price_per_unit": 55, "base_unit": "piece", "aliases": ""},
+        {"name": "rusk", "price_per_unit": 40, "base_unit": "packet", "aliases": "toast"},
+        {"name": "pav", "price_per_unit": 35, "base_unit": "packet", "aliases": ""},
+        {"name": "bun", "price_per_unit": 30, "base_unit": "packet", "aliases": ""},
+        {"name": "cake", "price_per_unit": 150, "base_unit": "piece", "aliases": ""},
+    ],
+    "eggs and meat": [
+        {"name": "eggs", "price_per_unit": 72, "base_unit": "dozen", "aliases": "anda"},
+        {"name": "chicken", "price_per_unit": 260, "base_unit": "kg", "aliases": ""},
+        {"name": "fish", "price_per_unit": 280, "base_unit": "kg", "aliases": ""},
     ],
 }
 
@@ -189,6 +325,74 @@ def detect_language_command(msg):
 
 
 def get_db_connection():
+    class _NormalizedCursor:
+        def __init__(self, cursor):
+            self._cursor = cursor
+
+        def _normalize_row(self, row):
+            if row is None:
+                return None
+            if isinstance(row, dict):
+                return row
+            if hasattr(row, "keys") and not isinstance(row, (tuple, list)):
+                try:
+                    return {k: row[k] for k in row.keys()}
+                except Exception:
+                    pass
+            if isinstance(row, (tuple, list)):
+                description = getattr(self._cursor, "description", None) or []
+                if description:
+                    mapped = {}
+                    for i, value in enumerate(row):
+                        if i >= len(description):
+                            break
+                        col = description[i]
+                        if isinstance(col, (tuple, list)):
+                            col_name = str(col[0])
+                        else:
+                            col_name = str(col)
+                        mapped[col_name] = value
+                    if mapped:
+                        return mapped
+            return row
+
+        def fetchone(self):
+            return self._normalize_row(self._cursor.fetchone())
+
+        def fetchall(self):
+            rows = self._cursor.fetchall()
+            return [self._normalize_row(r) for r in rows]
+
+        def __iter__(self):
+            for row in self._cursor:
+                yield self._normalize_row(row)
+
+        def __getattr__(self, name):
+            return getattr(self._cursor, name)
+
+    class _NormalizedConnection:
+        def __init__(self, conn):
+            self._conn = conn
+
+        def execute(self, *args, **kwargs):
+            return _NormalizedCursor(self._conn.execute(*args, **kwargs))
+
+        def executemany(self, *args, **kwargs):
+            return _NormalizedCursor(self._conn.executemany(*args, **kwargs))
+
+        def cursor(self, *args, **kwargs):
+            return _NormalizedCursor(self._conn.cursor(*args, **kwargs))
+
+        def __enter__(self):
+            self._conn.__enter__()
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return self._conn.__exit__(exc_type, exc, tb)
+
+        def __getattr__(self, name):
+            return getattr(self._conn, name)
+
     def _dict_row_factory(cursor, row):
         try:
             cols = [c[0] for c in cursor.description]
@@ -208,15 +412,11 @@ def get_db_connection():
             auth_token=TURSO_AUTH_TOKEN,
             sync_interval=30,
         )
-        try:
-            conn.row_factory = _dict_row_factory
-        except Exception:
-            pass
-        return conn
+        return _NormalizedConnection(conn)
 
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = _dict_row_factory
-    return conn
+    return _NormalizedConnection(conn)
 
 
 def ensure_column(conn, table_name, column_name, ddl):
@@ -239,15 +439,25 @@ def ensure_column(conn, table_name, column_name, ddl):
         conn.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {ddl}")
 
 
+def row_value(row, key, fallback_index=0, default=None):
+    try:
+        return row[key]
+    except Exception:
+        if isinstance(row, dict):
+            return row.get(key, default)
+        if isinstance(row, (tuple, list)) and len(row) > fallback_index:
+            return row[fallback_index]
+    return default
+
+
+def is_unique_constraint_error(exc):
+    text = str(exc).lower()
+    return "unique" in text or ("constraint" in text and "failed" in text)
+
+
 def seed_catalog_if_empty(conn):
     row = conn.execute("SELECT COUNT(*) AS c FROM categories").fetchone()
-    try:
-        count = row["c"]
-    except Exception:
-        if isinstance(row, (tuple, list)) and row:
-            count = row[0]
-        else:
-            count = 0
+    count = row_value(row, "c", fallback_index=0, default=0) or 0
     if count > 0:
         return
 
@@ -271,6 +481,55 @@ def seed_catalog_if_empty(conn):
                     p.get("aliases", "").lower().strip(),
                 ),
             )
+
+
+def sync_default_catalog(conn):
+    category_rows = conn.execute("SELECT id, name FROM categories").fetchall()
+    category_ids = {}
+    for row in category_rows:
+        name = str(row_value(row, "name", fallback_index=1, default="")).lower().strip()
+        cat_id = row_value(row, "id", fallback_index=0, default=None)
+        if name and cat_id is not None:
+            category_ids[name] = int(cat_id)
+
+    for category_name, product_list in DEFAULT_CATALOG.items():
+        normalized_category = category_name.lower().strip()
+        category_id = category_ids.get(normalized_category)
+        if category_id is None:
+            cur = conn.execute("INSERT OR IGNORE INTO categories(name) VALUES (?)", (normalized_category,))
+            category_id = cur.lastrowid
+            if not category_id:
+                row = conn.execute("SELECT id FROM categories WHERE name = ?", (normalized_category,)).fetchone()
+                category_id = row_value(row, "id", fallback_index=0, default=None)
+            if category_id is None:
+                continue
+            category_ids[normalized_category] = int(category_id)
+
+        existing_rows = conn.execute("SELECT name FROM products WHERE category_id = ?", (category_id,)).fetchall()
+        existing_names = {
+            str(row_value(r, "name", fallback_index=0, default="")).lower().strip()
+            for r in existing_rows
+            if str(row_value(r, "name", fallback_index=0, default="")).strip()
+        }
+
+        for p in product_list:
+            product_name = p["name"].lower().strip()
+            if product_name in existing_names:
+                continue
+            conn.execute(
+                """
+                INSERT INTO products(category_id, name, price_per_unit, base_unit, aliases, is_active)
+                VALUES (?, ?, ?, ?, ?, 1)
+                """,
+                (
+                    category_id,
+                    product_name,
+                    float(p["price_per_unit"]),
+                    p["base_unit"],
+                    p.get("aliases", "").lower().strip(),
+                ),
+            )
+            existing_names.add(product_name)
 
 
 def init_db():
@@ -423,6 +682,7 @@ def init_db():
         ensure_column(conn, "push_subscriptions", "updated_at", "TEXT")
 
         seed_catalog_if_empty(conn)
+        sync_default_catalog(conn)
         conn.commit()
 
 
@@ -540,7 +800,9 @@ def save_order_with_retry(method, address, subtotal, delivery_fee, total, items,
         try:
             save_order(order_id, method, address, subtotal, delivery_fee, total, items, pickup_time=pickup_time)
             return order_id
-        except sqlite3.IntegrityError:
+        except Exception as exc:
+            if not is_unique_constraint_error(exc):
+                raise
             continue
     raise RuntimeError("Could not generate a unique order ID after multiple attempts.")
 
@@ -1167,7 +1429,9 @@ def create_family_group(user_id, family_name):
                 )
                 conn.commit()
             return {"id": group_id, "name": family_name, "invite_code": code}, None
-        except sqlite3.IntegrityError:
+        except Exception as exc:
+            if not is_unique_constraint_error(exc):
+                return None, "Could not create family right now. Please try again."
             continue
     return None, "Could not create family right now. Please try again."
 
@@ -1196,7 +1460,7 @@ def join_family_group(user_id, invite_code):
                 (int(grp["id"]), user_id, datetime.datetime.now().isoformat(timespec="seconds")),
             )
             conn.commit()
-        except sqlite3.IntegrityError:
+        except Exception:
             pass
     return {"id": int(grp["id"]), "name": grp["name"], "invite_code": grp["invite_code"]}, None
 
@@ -2487,8 +2751,10 @@ def auth_register():
             )
             conn.commit()
             user_id = cur.lastrowid
-    except sqlite3.IntegrityError:
-        return jsonify({"error": "Username already exists."}), 409
+    except Exception as exc:
+        if is_unique_constraint_error(exc):
+            return jsonify({"error": "Username already exists."}), 409
+        return jsonify({"error": f"Could not register user: {str(exc)}"}), 500
 
     session["user_id"] = user_id
     session["username"] = username
@@ -2512,14 +2778,17 @@ def auth_login():
             (username,),
         ).fetchone()
 
-    if not user or not check_password_hash(user["password_hash"], password):
+    password_hash = row_value(user, "password_hash", fallback_index=2, default="") if user else ""
+    if not user or not check_password_hash(password_hash, password):
         return jsonify({"error": "Invalid credentials."}), 401
 
-    session["user_id"] = user["id"]
-    session["username"] = user["username"]
+    user_id = row_value(user, "id", fallback_index=0, default=None)
+    username_value = row_value(user, "username", fallback_index=1, default=username)
+    session["user_id"] = user_id
+    session["username"] = username_value
     session.modified = True
-    log_event("user_logged_in", {"username": user["username"]})
-    return jsonify({"status": "logged_in", "user": {"id": user["id"], "username": user["username"]}})
+    log_event("user_logged_in", {"username": username_value})
+    return jsonify({"status": "logged_in", "user": {"id": user_id, "username": username_value}})
 
 
 @app.route("/auth/logout", methods=["POST"])
@@ -2706,9 +2975,9 @@ def create_category():
             cur = conn.execute("INSERT INTO categories(name) VALUES (?)", (name,))
             conn.commit()
         return jsonify({"id": cur.lastrowid, "name": name}), 201
-    except sqlite3.IntegrityError:
-        return jsonify({"error": "Category already exists."}), 409
     except Exception as exc:
+        if is_unique_constraint_error(exc):
+            return jsonify({"error": "Category already exists."}), 409
         return jsonify({"error": f"Could not create category: {str(exc)}"}), 500
 
 
@@ -2730,8 +2999,10 @@ def update_category(category_id):
             try:
                 conn.execute("UPDATE categories SET name = ? WHERE id = ?", (name, category_id))
                 conn.commit()
-            except sqlite3.IntegrityError:
-                return jsonify({"error": "Category name already in use."}), 409
+            except Exception as exc:
+                if is_unique_constraint_error(exc):
+                    return jsonify({"error": "Category name already in use."}), 409
+                return jsonify({"error": f"Could not update category: {str(exc)}"}), 500
     except Exception as exc:
         return jsonify({"error": f"Could not update category: {str(exc)}"}), 500
 
