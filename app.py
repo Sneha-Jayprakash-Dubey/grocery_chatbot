@@ -202,7 +202,10 @@ def get_db_connection():
             sync_interval=30,
         )
         try:
-            conn.row_factory = sqlite3.Row
+            if hasattr(libsql, "Row"):
+                conn.row_factory = libsql.Row
+            else:
+                conn.row_factory = sqlite3.Row
         except Exception:
             pass
         return conn
@@ -213,10 +216,21 @@ def get_db_connection():
 
 
 def ensure_column(conn, table_name, column_name, ddl):
-    existing = {
-        row["name"]
-        for row in conn.execute(f"PRAGMA table_info({table_name})").fetchall()
-    }
+    existing = set()
+    rows = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+    for row in rows:
+        name = None
+        try:
+            name = row["name"]
+        except Exception:
+            # Tuple fallback (PRAGMA table_info order: cid, name, type, ...)
+            if isinstance(row, (tuple, list)):
+                if len(row) > 1:
+                    name = row[1]
+                elif len(row) > 0:
+                    name = row[0]
+        if name:
+            existing.add(str(name))
     if column_name not in existing:
         conn.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {ddl}")
 
