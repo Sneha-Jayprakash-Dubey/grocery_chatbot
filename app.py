@@ -189,6 +189,13 @@ def detect_language_command(msg):
 
 
 def get_db_connection():
+    def _dict_row_factory(cursor, row):
+        try:
+            cols = [c[0] for c in cursor.description]
+            return {cols[i]: row[i] for i in range(len(cols))}
+        except Exception:
+            return row
+
     if TURSO_DATABASE_URL and TURSO_AUTH_TOKEN:
         if libsql is None:
             raise RuntimeError(
@@ -202,16 +209,13 @@ def get_db_connection():
             sync_interval=30,
         )
         try:
-            if hasattr(libsql, "Row"):
-                conn.row_factory = libsql.Row
-            else:
-                conn.row_factory = sqlite3.Row
+            conn.row_factory = _dict_row_factory
         except Exception:
             pass
         return conn
 
     conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+    conn.row_factory = _dict_row_factory
     return conn
 
 
@@ -236,7 +240,14 @@ def ensure_column(conn, table_name, column_name, ddl):
 
 
 def seed_catalog_if_empty(conn):
-    count = conn.execute("SELECT COUNT(*) AS c FROM categories").fetchone()["c"]
+    row = conn.execute("SELECT COUNT(*) AS c FROM categories").fetchone()
+    try:
+        count = row["c"]
+    except Exception:
+        if isinstance(row, (tuple, list)) and row:
+            count = row[0]
+        else:
+            count = 0
     if count > 0:
         return
 
