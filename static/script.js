@@ -4,6 +4,10 @@ const authUser = document.getElementById('authUser');
 const loginBtn = document.getElementById('loginBtn');
 const registerBtn = document.getElementById('registerBtn');
 const logoutBtn = document.getElementById('logoutBtn');
+const sendBtn = document.querySelector('.send-btn');
+let isAuthenticated = false;
+userInput.disabled = true;
+if (sendBtn) sendBtn.disabled = true;
 let seenNotifications = new Set();
 let swRegistration = null;
 let webPushEnabled = false;
@@ -15,6 +19,11 @@ function quickSend(val) {
 }
 
 async function send() {
+    if (!isAuthenticated) {
+        appendMessage('bot', 'Please login or register before using the assistant.');
+        return;
+    }
+
     const text = userInput.value.trim();
     if (!text) return;
 
@@ -34,7 +43,11 @@ async function send() {
 
         const loadingNode = document.getElementById(loadingId);
         if (loadingNode) loadingNode.remove();
-        appendMessage('bot', data.reply || 'I could not process that.');
+        if (!response.ok) {
+            appendMessage('bot', data.error || 'Authentication required. Please login or register.');
+            return;
+        }
+        appendMessage('bot', data.reply || 'I could not process that.', null, data.actions || []);
     } catch (e) {
         const loadingNode = document.getElementById(loadingId);
         if (loadingNode) {
@@ -45,7 +58,7 @@ async function send() {
     }
 }
 
-function appendMessage(sender, text, id = null) {
+function appendMessage(sender, text, id = null, actions = []) {
     const msgDiv = document.createElement('div');
     msgDiv.className = `${sender}-message message animate-in`;
     if (id) msgDiv.id = id;
@@ -57,6 +70,25 @@ function appendMessage(sender, text, id = null) {
         <div class="avatar">${avatar}</div>
         <div class="text">${formattedText}</div>
     `;
+
+    if (sender === 'bot' && Array.isArray(actions) && actions.length > 0) {
+        const actionRow = document.createElement('div');
+        actionRow.className = 'action-row';
+        actions.forEach((a) => {
+            const label = (a && a.label) ? String(a.label) : '';
+            const message = (a && a.message) ? String(a.message) : '';
+            if (!label || !message) return;
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'chip action-chip';
+            btn.textContent = label;
+            btn.addEventListener('click', () => quickSend(message));
+            actionRow.appendChild(btn);
+        });
+        if (actionRow.childNodes.length > 0) {
+            msgDiv.appendChild(actionRow);
+        }
+    }
 
     chatbox.appendChild(msgDiv);
     chatbox.scrollTo({ top: chatbox.scrollHeight, behavior: 'smooth' });
@@ -150,15 +182,23 @@ async function refreshAuthState() {
         const data = await res.json();
 
         if (data.authenticated) {
+            isAuthenticated = true;
             authUser.textContent = data.user.username;
             loginBtn.style.display = 'none';
             registerBtn.style.display = 'none';
             logoutBtn.style.display = 'inline-flex';
+            userInput.disabled = false;
+            if (sendBtn) sendBtn.disabled = false;
+            userInput.placeholder = 'Ask for groceries...';
         } else {
+            isAuthenticated = false;
             authUser.textContent = 'Guest';
             loginBtn.style.display = 'inline-flex';
             registerBtn.style.display = 'inline-flex';
             logoutBtn.style.display = 'none';
+            userInput.disabled = true;
+            if (sendBtn) sendBtn.disabled = true;
+            userInput.placeholder = 'Login or register to chat.';
         }
 
         await ensurePushSubscription();

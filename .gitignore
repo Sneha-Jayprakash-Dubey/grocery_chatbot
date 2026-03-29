@@ -3,3 +3,5 @@ __pycache__/
 venv/
 .env
 orders.db
+*.db
+.flask_secret_key

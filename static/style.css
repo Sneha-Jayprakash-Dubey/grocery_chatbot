@@ -46,6 +46,8 @@ body { background: var(--bg); height: 100vh; margin: 0; overflow: hidden; font-f
 
 .bot-message .text { background: var(--bot-bubble); border-bottom-left-radius: 4px; border: 1px solid #eee; }
 .user-message .text { background: var(--user-bubble); border-bottom-right-radius: 4px; }
+.action-row { margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap; padding-left: 42px; }
+.action-chip { font-size: 0.85rem; padding: 6px 12px; }
 
 /* Fixed Bottom Controls */
 .controls-wrapper {

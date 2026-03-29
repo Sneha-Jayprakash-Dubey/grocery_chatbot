@@ -1,0 +1,2402 @@
+[
+  {
+    "text": "drop all chips",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "what are snacks in store",
+    "intent": "show_products"
+  },
+  {
+    "text": "what are grocery items",
+    "intent": "show_products"
+  },
+  {
+    "text": "give snacks available",
+    "intent": "show_products"
+  },
+  {
+    "text": "place 1 rice",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "plan budget 200 rs",
+    "intent": "budget_query"
+  },
+  {
+    "text": "view vegetables in store",
+    "intent": "show_products"
+  },
+  {
+    "text": "hi",
+    "intent": "greeting"
+  },
+  {
+    "text": "hello assistant",
+    "intent": "greeting"
+  },
+  {
+    "text": "list fruits today",
+    "intent": "show_products"
+  },
+  {
+    "text": "can you make within 500 for groceries",
+    "intent": "budget_query"
+  },
+  {
+    "text": "what are snacks right now",
+    "intent": "show_products"
+  },
+  {
+    "text": "suggest cart cost 300 rupees",
+    "intent": "budget_query"
+  },
+  {
+    "text": "view products today",
+    "intent": "show_products"
+  },
+  {
+    "text": "sup",
+    "intent": "greeting"
+  },
+  {
+    "text": "good evening",
+    "intent": "greeting"
+  },
+  {
+    "text": "can you make cheap 500 rupees",
+    "intent": "budget_query"
+  },
+  {
+    "text": "place one packet of milk to my cart",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "add one packet of potato to my cart",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "can you make cheap 500 for groceries",
+    "intent": "budget_query"
+  },
+  {
+    "text": "hi bot",
+    "intent": "greeting"
+  },
+  {
+    "text": "find products cost 1000 for groceries",
+    "intent": "budget_query"
+  },
+  {
+    "text": "can you make under 100 for groceries",
+    "intent": "budget_query"
+  },
+  {
+    "text": "view vegetables right now",
+    "intent": "show_products"
+  },
+  {
+    "text": "place potato to my cart",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "what are dairy products in store",
+    "intent": "show_products"
+  },
+  {
+    "text": "hey",
+    "intent": "greeting"
+  },
+  {
+    "text": "good evening",
+    "intent": "greeting"
+  },
+  {
+    "text": "place 3 apple to my cart",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "exclude all bread from my cart",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "include 3 banana quickly",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "sup",
+    "intent": "greeting"
+  },
+  {
+    "text": "suggest cart affordable 200 cart total",
+    "intent": "budget_query"
+  },
+  {
+    "text": "good evening",
+    "intent": "greeting"
+  },
+  {
+    "text": "exclude 2 apple from my cart",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "view fruits in store",
+    "intent": "show_products"
+  },
+  {
+    "text": "hello assistant",
+    "intent": "greeting"
+  },
+  {
+    "text": "find products under 700 for groceries",
+    "intent": "budget_query"
+  },
+  {
+    "text": "view dairy products today",
+    "intent": "show_products"
+  },
+  {
+    "text": "plan within 1000 shopping plan",
+    "intent": "budget_query"
+  },
+  {
+    "text": "find products budget 200",
+    "intent": "budget_query"
+  },
+  {
+    "text": "hi",
+    "intent": "greeting"
+  },
+  {
+    "text": "cancel all rice from cart",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "buy 3 apple to my cart",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "delete 1 milk",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "add cheese please",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "hey there",
+    "intent": "greeting"
+  },
+  {
+    "text": "view products",
+    "intent": "show_products"
+  },
+  {
+    "text": "hello assistant",
+    "intent": "greeting"
+  },
+  {
+    "text": "remove 2 eggs from my cart",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "show items affordable 300 shopping plan",
+    "intent": "budget_query"
+  },
+  {
+    "text": "i need affordable 500 for groceries",
+    "intent": "budget_query"
+  },
+  {
+    "text": "take out all tomato please",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "add half kg of butter please",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "hello assistant",
+    "intent": "greeting"
+  },
+  {
+    "text": "plan within 1000 rupees",
+    "intent": "budget_query"
+  },
+  {
+    "text": "show snacks available",
+    "intent": "show_products"
+  },
+  {
+    "text": "take out all apple from my cart",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "put 2 bread quickly",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "buy 3 tomato please",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "hello",
+    "intent": "greeting"
+  },
+  {
+    "text": "place banana quickly",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "cancel tomato please",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "find products cheap 300 rs",
+    "intent": "budget_query"
+  },
+  {
+    "text": "take out milk please",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "add one packet of butter to my cart",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "list grocery items",
+    "intent": "show_products"
+  },
+  {
+    "text": "hello",
+    "intent": "greeting"
+  },
+  {
+    "text": "hey there",
+    "intent": "greeting"
+  },
+  {
+    "text": "put 1 tomato in cart",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "drop 2 banana",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "hey",
+    "intent": "greeting"
+  },
+  {
+    "text": "exclude apple please",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "good morning",
+    "intent": "greeting"
+  },
+  {
+    "text": "view vegetables available",
+    "intent": "show_products"
+  },
+  {
+    "text": "exclude 2 banana from my cart",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "drop 2 eggs from my cart",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "include tomato quickly",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "good afternoon",
+    "intent": "greeting"
+  },
+  {
+    "text": "hi",
+    "intent": "greeting"
+  },
+  {
+    "text": "take out 1 rice now",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "give products",
+    "intent": "show_products"
+  },
+  {
+    "text": "what are fruits today",
+    "intent": "show_products"
+  },
+  {
+    "text": "show items affordable 100 for groceries",
+    "intent": "budget_query"
+  },
+  {
+    "text": "what are grocery items available",
+    "intent": "show_products"
+  },
+  {
+    "text": "exclude 1 rice please",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "give grocery items available",
+    "intent": "show_products"
+  },
+  {
+    "text": "insert 1 potato in cart",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "take out all rice please",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "plan within 300 shopping plan",
+    "intent": "budget_query"
+  },
+  {
+    "text": "buy 3 rice now",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "hi",
+    "intent": "greeting"
+  },
+  {
+    "text": "exclude banana please",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "view products in store",
+    "intent": "show_products"
+  },
+  {
+    "text": "drop all bread please",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "delete rice from cart",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "sup",
+    "intent": "greeting"
+  },
+  {
+    "text": "give snacks in store",
+    "intent": "show_products"
+  },
+  {
+    "text": "cancel 2 banana please",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "i need cheap 300 rs",
+    "intent": "budget_query"
+  },
+  {
+    "text": "hello assistant",
+    "intent": "greeting"
+  },
+  {
+    "text": "i need affordable 1000 rs",
+    "intent": "budget_query"
+  },
+  {
+    "text": "suggest cart within 1000 rs",
+    "intent": "budget_query"
+  },
+  {
+    "text": "exclude all tomato now",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "sup",
+    "intent": "greeting"
+  },
+  {
+    "text": "include cheese to my cart",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "good evening",
+    "intent": "greeting"
+  },
+  {
+    "text": "remove 2 milk please",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "show items budget 500 rupees",
+    "intent": "budget_query"
+  },
+  {
+    "text": "give dairy products",
+    "intent": "show_products"
+  },
+  {
+    "text": "hi",
+    "intent": "greeting"
+  },
+  {
+    "text": "remove 2 rice now",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "suggest cart budget 200 shopping plan",
+    "intent": "budget_query"
+  },
+  {
+    "text": "what are dairy products",
+    "intent": "show_products"
+  },
+  {
+    "text": "place 3 banana quickly",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "what are fruits right now",
+    "intent": "show_products"
+  },
+  {
+    "text": "hi",
+    "intent": "greeting"
+  },
+  {
+    "text": "good afternoon",
+    "intent": "greeting"
+  },
+  {
+    "text": "show items cheap 1000 rupees",
+    "intent": "budget_query"
+  },
+  {
+    "text": "drop 1 apple from my cart",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "drop 1 eggs please",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "suggest cart budget 100 rs",
+    "intent": "budget_query"
+  },
+  {
+    "text": "buy 2 rice",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "list vegetables available",
+    "intent": "show_products"
+  },
+  {
+    "text": "give dairy products today",
+    "intent": "show_products"
+  },
+  {
+    "text": "insert 3 cheese to my cart",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "insert apple please",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "i need within 700 for groceries",
+    "intent": "budget_query"
+  },
+  {
+    "text": "drop all bread from my cart",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "give vegetables in store",
+    "intent": "show_products"
+  },
+  {
+    "text": "good morning",
+    "intent": "greeting"
+  },
+  {
+    "text": "add 2 milk now",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "good evening",
+    "intent": "greeting"
+  },
+  {
+    "text": "what are vegetables",
+    "intent": "show_products"
+  },
+  {
+    "text": "delete 1 rice from cart",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "place half kg of milk please",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "yo",
+    "intent": "greeting"
+  },
+  {
+    "text": "drop 1 rice now",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "insert potato in cart",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "good evening",
+    "intent": "greeting"
+  },
+  {
+    "text": "show grocery items today",
+    "intent": "show_products"
+  },
+  {
+    "text": "yo",
+    "intent": "greeting"
+  },
+  {
+    "text": "insert 1 banana please",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "display vegetables available",
+    "intent": "show_products"
+  },
+  {
+    "text": "delete all chips please",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "show items today",
+    "intent": "show_products"
+  },
+  {
+    "text": "delete milk",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "hello",
+    "intent": "greeting"
+  },
+  {
+    "text": "drop all milk",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "display fruits right now",
+    "intent": "show_products"
+  },
+  {
+    "text": "cancel 2 tomato now",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "exclude banana from cart",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "buy half kg of potato in cart",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "buy 1 butter please",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "delete all rice from my cart",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "add half kg of milk please",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "what are products right now",
+    "intent": "show_products"
+  },
+  {
+    "text": "i need affordable 200 shopping plan",
+    "intent": "budget_query"
+  },
+  {
+    "text": "add 3 cheese",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "include 3 rice to my cart",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "show fruits in store",
+    "intent": "show_products"
+  },
+  {
+    "text": "buy one packet of eggs quickly",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "i need within 100 for groceries",
+    "intent": "budget_query"
+  },
+  {
+    "text": "exclude rice from my cart",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "exclude all apple please",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "insert potato please",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "hey there",
+    "intent": "greeting"
+  },
+  {
+    "text": "place 2 apple now",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "drop bread please",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "hey there",
+    "intent": "greeting"
+  },
+  {
+    "text": "include 2 milk to my cart",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "namaste",
+    "intent": "greeting"
+  },
+  {
+    "text": "put 1 potato please",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "cancel all milk from my cart",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "list vegetables today",
+    "intent": "show_products"
+  },
+  {
+    "text": "view products available",
+    "intent": "show_products"
+  },
+  {
+    "text": "place 1 rice now",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "drop 1 banana please",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "hey",
+    "intent": "greeting"
+  },
+  {
+    "text": "show items budget 1000",
+    "intent": "budget_query"
+  },
+  {
+    "text": "what are grocery items right now",
+    "intent": "show_products"
+  },
+  {
+    "text": "show items under 1000 cart total",
+    "intent": "budget_query"
+  },
+  {
+    "text": "yo",
+    "intent": "greeting"
+  },
+  {
+    "text": "suggest cart affordable 700 cart total",
+    "intent": "budget_query"
+  },
+  {
+    "text": "find products within 300",
+    "intent": "budget_query"
+  },
+  {
+    "text": "add 2 butter in cart",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "hi bot",
+    "intent": "greeting"
+  },
+  {
+    "text": "hey",
+    "intent": "greeting"
+  },
+  {
+    "text": "exclude 1 milk",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "drop milk from my cart",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "find products affordable 700 rupees",
+    "intent": "budget_query"
+  },
+  {
+    "text": "show vegetables right now",
+    "intent": "show_products"
+  },
+  {
+    "text": "include 1 milk please",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "yo",
+    "intent": "greeting"
+  },
+  {
+    "text": "display grocery items",
+    "intent": "show_products"
+  },
+  {
+    "text": "hello",
+    "intent": "greeting"
+  },
+  {
+    "text": "drop 2 eggs now",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "i need affordable 300 rupees",
+    "intent": "budget_query"
+  },
+  {
+    "text": "i need affordable 300 rs",
+    "intent": "budget_query"
+  },
+  {
+    "text": "find products under 200 cart total",
+    "intent": "budget_query"
+  },
+  {
+    "text": "delete rice please",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "exclude rice from cart",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "include 1 butter to my cart",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "list dairy products",
+    "intent": "show_products"
+  },
+  {
+    "text": "give items in store",
+    "intent": "show_products"
+  },
+  {
+    "text": "include half kg of tomato quickly",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "remove apple",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "exclude 1 apple from my cart",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "hi",
+    "intent": "greeting"
+  },
+  {
+    "text": "find products within 200 rs",
+    "intent": "budget_query"
+  },
+  {
+    "text": "display items",
+    "intent": "show_products"
+  },
+  {
+    "text": "list fruits available",
+    "intent": "show_products"
+  },
+  {
+    "text": "add bread",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "hi bot",
+    "intent": "greeting"
+  },
+  {
+    "text": "include 2 milk in cart",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "hey",
+    "intent": "greeting"
+  },
+  {
+    "text": "place 3 cheese in cart",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "hello assistant",
+    "intent": "greeting"
+  },
+  {
+    "text": "remove 2 banana from my cart",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "insert 2 potato now",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "insert one packet of cheese quickly",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "find products budget 100 shopping plan",
+    "intent": "budget_query"
+  },
+  {
+    "text": "suggest cart within 200 for groceries",
+    "intent": "budget_query"
+  },
+  {
+    "text": "add one packet of cheese in cart",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "show products",
+    "intent": "show_products"
+  },
+  {
+    "text": "cancel all apple now",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "put potato",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "yo",
+    "intent": "greeting"
+  },
+  {
+    "text": "remove 1 tomato",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "suggest cart cheap 300 shopping plan",
+    "intent": "budget_query"
+  },
+  {
+    "text": "hey there",
+    "intent": "greeting"
+  },
+  {
+    "text": "display snacks today",
+    "intent": "show_products"
+  },
+  {
+    "text": "i need under 1000 for groceries",
+    "intent": "budget_query"
+  },
+  {
+    "text": "good morning",
+    "intent": "greeting"
+  },
+  {
+    "text": "hello",
+    "intent": "greeting"
+  },
+  {
+    "text": "exclude apple now",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "buy 2 tomato in cart",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "exclude 2 milk from my cart",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "cancel bread now",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "plan cheap 300 rs",
+    "intent": "budget_query"
+  },
+  {
+    "text": "show items budget 700 cart total",
+    "intent": "budget_query"
+  },
+  {
+    "text": "take out all milk now",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "can you make cost 1000 rupees",
+    "intent": "budget_query"
+  },
+  {
+    "text": "display snacks right now",
+    "intent": "show_products"
+  },
+  {
+    "text": "place one packet of tomato now",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "find products under 500 rs",
+    "intent": "budget_query"
+  },
+  {
+    "text": "place 1 banana now",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "cancel banana from my cart",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "good morning",
+    "intent": "greeting"
+  },
+  {
+    "text": "list vegetables right now",
+    "intent": "show_products"
+  },
+  {
+    "text": "hello assistant",
+    "intent": "greeting"
+  },
+  {
+    "text": "hello",
+    "intent": "greeting"
+  },
+  {
+    "text": "can you make cheap 300 shopping plan",
+    "intent": "budget_query"
+  },
+  {
+    "text": "cancel 1 bread from my cart",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "find products cheap 200 for groceries",
+    "intent": "budget_query"
+  },
+  {
+    "text": "plan budget 500 rs",
+    "intent": "budget_query"
+  },
+  {
+    "text": "exclude 2 bread now",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "remove banana from cart",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "sup",
+    "intent": "greeting"
+  },
+  {
+    "text": "show vegetables",
+    "intent": "show_products"
+  },
+  {
+    "text": "suggest cart under 100 shopping plan",
+    "intent": "budget_query"
+  },
+  {
+    "text": "hi bot",
+    "intent": "greeting"
+  },
+  {
+    "text": "hi",
+    "intent": "greeting"
+  },
+  {
+    "text": "display vegetables today",
+    "intent": "show_products"
+  },
+  {
+    "text": "include 1 banana quickly",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "place 3 banana please",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "what are products available",
+    "intent": "show_products"
+  },
+  {
+    "text": "drop all apple from my cart",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "give dairy products in store",
+    "intent": "show_products"
+  },
+  {
+    "text": "hello",
+    "intent": "greeting"
+  },
+  {
+    "text": "good afternoon",
+    "intent": "greeting"
+  },
+  {
+    "text": "remove 1 banana",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "good afternoon",
+    "intent": "greeting"
+  },
+  {
+    "text": "include 3 butter please",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "delete all eggs please",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "give items",
+    "intent": "show_products"
+  },
+  {
+    "text": "show items cost 200",
+    "intent": "budget_query"
+  },
+  {
+    "text": "buy half kg of milk to my cart",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "put 2 milk to my cart",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "suggest cart under 200 shopping plan",
+    "intent": "budget_query"
+  },
+  {
+    "text": "show dairy products in store",
+    "intent": "show_products"
+  },
+  {
+    "text": "add eggs in cart",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "good evening",
+    "intent": "greeting"
+  },
+  {
+    "text": "put 3 eggs to my cart",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "show items budget 100 shopping plan",
+    "intent": "budget_query"
+  },
+  {
+    "text": "list snacks available",
+    "intent": "show_products"
+  },
+  {
+    "text": "place half kg of banana please",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "hello assistant",
+    "intent": "greeting"
+  },
+  {
+    "text": "place 3 banana in cart",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "show items",
+    "intent": "show_products"
+  },
+  {
+    "text": "show grocery items",
+    "intent": "show_products"
+  },
+  {
+    "text": "good morning",
+    "intent": "greeting"
+  },
+  {
+    "text": "can you make cost 700 cart total",
+    "intent": "budget_query"
+  },
+  {
+    "text": "exclude 1 chips from cart",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "list fruits",
+    "intent": "show_products"
+  },
+  {
+    "text": "find products affordable 500 shopping plan",
+    "intent": "budget_query"
+  },
+  {
+    "text": "drop apple now",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "what are vegetables in store",
+    "intent": "show_products"
+  },
+  {
+    "text": "sup",
+    "intent": "greeting"
+  },
+  {
+    "text": "remove rice from cart",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "suggest cart budget 300 shopping plan",
+    "intent": "budget_query"
+  },
+  {
+    "text": "plan cheap 200 for groceries",
+    "intent": "budget_query"
+  },
+  {
+    "text": "exclude all banana",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "what are fruits",
+    "intent": "show_products"
+  },
+  {
+    "text": "delete 1 rice from my cart",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "good evening",
+    "intent": "greeting"
+  },
+  {
+    "text": "good evening",
+    "intent": "greeting"
+  },
+  {
+    "text": "hey there",
+    "intent": "greeting"
+  },
+  {
+    "text": "insert 3 potato please",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "hello assistant",
+    "intent": "greeting"
+  },
+  {
+    "text": "find products within 100 rs",
+    "intent": "budget_query"
+  },
+  {
+    "text": "show fruits",
+    "intent": "show_products"
+  },
+  {
+    "text": "what are snacks",
+    "intent": "show_products"
+  },
+  {
+    "text": "can you make within 300 shopping plan",
+    "intent": "budget_query"
+  },
+  {
+    "text": "can you make affordable 700 cart total",
+    "intent": "budget_query"
+  },
+  {
+    "text": "cancel 1 eggs from cart",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "show items under 200 rupees",
+    "intent": "budget_query"
+  },
+  {
+    "text": "i need within 100 cart total",
+    "intent": "budget_query"
+  },
+  {
+    "text": "good afternoon",
+    "intent": "greeting"
+  },
+  {
+    "text": "add one packet of banana please",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "delete apple",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "hi bot",
+    "intent": "greeting"
+  },
+  {
+    "text": "remove all bread",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "list items in store",
+    "intent": "show_products"
+  },
+  {
+    "text": "show dairy products right now",
+    "intent": "show_products"
+  },
+  {
+    "text": "take out 1 tomato from cart",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "buy 1 eggs to my cart",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "view grocery items today",
+    "intent": "show_products"
+  },
+  {
+    "text": "insert half kg of potato now",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "display fruits available",
+    "intent": "show_products"
+  },
+  {
+    "text": "put half kg of butter now",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "buy half kg of potato to my cart",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "give products in store",
+    "intent": "show_products"
+  },
+  {
+    "text": "exclude 1 milk now",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "add half kg of tomato now",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "i need budget 500 rupees",
+    "intent": "budget_query"
+  },
+  {
+    "text": "view grocery items",
+    "intent": "show_products"
+  },
+  {
+    "text": "give items today",
+    "intent": "show_products"
+  },
+  {
+    "text": "give snacks today",
+    "intent": "show_products"
+  },
+  {
+    "text": "remove 2 chips please",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "yo",
+    "intent": "greeting"
+  },
+  {
+    "text": "show items within 700 shopping plan",
+    "intent": "budget_query"
+  },
+  {
+    "text": "show snacks",
+    "intent": "show_products"
+  },
+  {
+    "text": "include 3 apple please",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "show grocery items right now",
+    "intent": "show_products"
+  },
+  {
+    "text": "show items budget 100 for groceries",
+    "intent": "budget_query"
+  },
+  {
+    "text": "buy butter to my cart",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "good morning",
+    "intent": "greeting"
+  },
+  {
+    "text": "buy half kg of rice quickly",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "remove 1 rice now",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "exclude 1 bread now",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "yo",
+    "intent": "greeting"
+  },
+  {
+    "text": "cancel 1 bread now",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "show products today",
+    "intent": "show_products"
+  },
+  {
+    "text": "suggest cart cost 1000 cart total",
+    "intent": "budget_query"
+  },
+  {
+    "text": "put 1 apple in cart",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "take out 2 apple",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "hi",
+    "intent": "greeting"
+  },
+  {
+    "text": "drop all apple",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "drop eggs please",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "include 3 cheese",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "cancel bread",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "add rice to my cart",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "display products available",
+    "intent": "show_products"
+  },
+  {
+    "text": "put 2 butter please",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "insert 1 butter to my cart",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "put banana to my cart",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "find products cheap 200 cart total",
+    "intent": "budget_query"
+  },
+  {
+    "text": "good afternoon",
+    "intent": "greeting"
+  },
+  {
+    "text": "take out 1 milk please",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "hi bot",
+    "intent": "greeting"
+  },
+  {
+    "text": "hello",
+    "intent": "greeting"
+  },
+  {
+    "text": "suggest cart budget 1000 for groceries",
+    "intent": "budget_query"
+  },
+  {
+    "text": "insert one packet of apple quickly",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "yo",
+    "intent": "greeting"
+  },
+  {
+    "text": "view snacks",
+    "intent": "show_products"
+  },
+  {
+    "text": "give items right now",
+    "intent": "show_products"
+  },
+  {
+    "text": "delete 2 rice",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "i need cost 200",
+    "intent": "budget_query"
+  },
+  {
+    "text": "show items within 500 rupees",
+    "intent": "budget_query"
+  },
+  {
+    "text": "show items cheap 500 rupees",
+    "intent": "budget_query"
+  },
+  {
+    "text": "view items right now",
+    "intent": "show_products"
+  },
+  {
+    "text": "put half kg of tomato now",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "take out 2 rice now",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "list vegetables in store",
+    "intent": "show_products"
+  },
+  {
+    "text": "place tomato now",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "good evening",
+    "intent": "greeting"
+  },
+  {
+    "text": "plan budget 300 rs",
+    "intent": "budget_query"
+  },
+  {
+    "text": "sup",
+    "intent": "greeting"
+  },
+  {
+    "text": "find products budget 700 for groceries",
+    "intent": "budget_query"
+  },
+  {
+    "text": "give dairy products right now",
+    "intent": "show_products"
+  },
+  {
+    "text": "good afternoon",
+    "intent": "greeting"
+  },
+  {
+    "text": "display products right now",
+    "intent": "show_products"
+  },
+  {
+    "text": "find products affordable 200 rupees",
+    "intent": "budget_query"
+  },
+  {
+    "text": "drop all banana",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "i need cheap 1000 for groceries",
+    "intent": "budget_query"
+  },
+  {
+    "text": "place one packet of milk now",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "show grocery items in store",
+    "intent": "show_products"
+  },
+  {
+    "text": "good afternoon",
+    "intent": "greeting"
+  },
+  {
+    "text": "cancel 2 bread please",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "what are grocery items in store",
+    "intent": "show_products"
+  },
+  {
+    "text": "display grocery items today",
+    "intent": "show_products"
+  },
+  {
+    "text": "sup",
+    "intent": "greeting"
+  },
+  {
+    "text": "drop rice please",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "plan budget 700 shopping plan",
+    "intent": "budget_query"
+  },
+  {
+    "text": "list fruits in store",
+    "intent": "show_products"
+  },
+  {
+    "text": "show items affordable 100 shopping plan",
+    "intent": "budget_query"
+  },
+  {
+    "text": "insert 3 rice to my cart",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "i need budget 100 for groceries",
+    "intent": "budget_query"
+  },
+  {
+    "text": "can you make cost 300 rs",
+    "intent": "budget_query"
+  },
+  {
+    "text": "plan under 500 shopping plan",
+    "intent": "budget_query"
+  },
+  {
+    "text": "show items in store",
+    "intent": "show_products"
+  },
+  {
+    "text": "place 2 cheese in cart",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "good morning",
+    "intent": "greeting"
+  },
+  {
+    "text": "drop 1 apple now",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "place one packet of rice to my cart",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "yo",
+    "intent": "greeting"
+  },
+  {
+    "text": "can you make under 500",
+    "intent": "budget_query"
+  },
+  {
+    "text": "add 2 potato",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "exclude 1 rice from my cart",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "i need budget 700 rs",
+    "intent": "budget_query"
+  },
+  {
+    "text": "what are vegetables today",
+    "intent": "show_products"
+  },
+  {
+    "text": "include 2 apple quickly",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "can you make cheap 200 rs",
+    "intent": "budget_query"
+  },
+  {
+    "text": "cancel eggs please",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "good afternoon",
+    "intent": "greeting"
+  },
+  {
+    "text": "show items within 200 for groceries",
+    "intent": "budget_query"
+  },
+  {
+    "text": "add rice",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "hey",
+    "intent": "greeting"
+  },
+  {
+    "text": "suggest cart budget 500 rs",
+    "intent": "budget_query"
+  },
+  {
+    "text": "cancel 2 rice please",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "suggest cart within 100",
+    "intent": "budget_query"
+  },
+  {
+    "text": "include 1 tomato to my cart",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "what are products in store",
+    "intent": "show_products"
+  },
+  {
+    "text": "insert 1 eggs please",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "put 2 banana",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "sup",
+    "intent": "greeting"
+  },
+  {
+    "text": "include tomato please",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "insert 1 banana to my cart",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "list snacks",
+    "intent": "show_products"
+  },
+  {
+    "text": "place 1 tomato quickly",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "hi",
+    "intent": "greeting"
+  },
+  {
+    "text": "take out 1 chips from my cart",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "can you make affordable 700 for groceries",
+    "intent": "budget_query"
+  },
+  {
+    "text": "cancel 1 chips now",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "what are dairy products today",
+    "intent": "show_products"
+  },
+  {
+    "text": "plan affordable 1000 cart total",
+    "intent": "budget_query"
+  },
+  {
+    "text": "hi",
+    "intent": "greeting"
+  },
+  {
+    "text": "give vegetables right now",
+    "intent": "show_products"
+  },
+  {
+    "text": "exclude 1 apple now",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "show items cheap 1000 shopping plan",
+    "intent": "budget_query"
+  },
+  {
+    "text": "list grocery items available",
+    "intent": "show_products"
+  },
+  {
+    "text": "give dairy products available",
+    "intent": "show_products"
+  },
+  {
+    "text": "hi bot",
+    "intent": "greeting"
+  },
+  {
+    "text": "what are fruits in store",
+    "intent": "show_products"
+  },
+  {
+    "text": "list grocery items in store",
+    "intent": "show_products"
+  },
+  {
+    "text": "exclude all rice please",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "find products under 500 rupees",
+    "intent": "budget_query"
+  },
+  {
+    "text": "buy half kg of rice in cart",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "namaste",
+    "intent": "greeting"
+  },
+  {
+    "text": "exclude all chips from my cart",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "show items right now",
+    "intent": "show_products"
+  },
+  {
+    "text": "give snacks right now",
+    "intent": "show_products"
+  },
+  {
+    "text": "display dairy products",
+    "intent": "show_products"
+  },
+  {
+    "text": "list snacks today",
+    "intent": "show_products"
+  },
+  {
+    "text": "place tomato",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "give snacks",
+    "intent": "show_products"
+  },
+  {
+    "text": "sup",
+    "intent": "greeting"
+  },
+  {
+    "text": "include 1 milk to my cart",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "view items available",
+    "intent": "show_products"
+  },
+  {
+    "text": "take out 2 tomato please",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "give fruits in store",
+    "intent": "show_products"
+  },
+  {
+    "text": "exclude all apple",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "suggest cart cheap 700 rs",
+    "intent": "budget_query"
+  },
+  {
+    "text": "show snacks today",
+    "intent": "show_products"
+  },
+  {
+    "text": "put 1 tomato quickly",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "place 3 milk please",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "include half kg of bread please",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "namaste",
+    "intent": "greeting"
+  },
+  {
+    "text": "view dairy products available",
+    "intent": "show_products"
+  },
+  {
+    "text": "suggest cart cost 1000",
+    "intent": "budget_query"
+  },
+  {
+    "text": "i need under 100",
+    "intent": "budget_query"
+  },
+  {
+    "text": "can you make under 700 rupees",
+    "intent": "budget_query"
+  },
+  {
+    "text": "drop 1 milk please",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "i need budget 700 for groceries",
+    "intent": "budget_query"
+  },
+  {
+    "text": "list fruits right now",
+    "intent": "show_products"
+  },
+  {
+    "text": "list items",
+    "intent": "show_products"
+  },
+  {
+    "text": "i need budget 700",
+    "intent": "budget_query"
+  },
+  {
+    "text": "cancel rice now",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "show grocery items available",
+    "intent": "show_products"
+  },
+  {
+    "text": "i need cheap 200 cart total",
+    "intent": "budget_query"
+  },
+  {
+    "text": "plan within 300",
+    "intent": "budget_query"
+  },
+  {
+    "text": "view products right now",
+    "intent": "show_products"
+  },
+  {
+    "text": "show products in store",
+    "intent": "show_products"
+  },
+  {
+    "text": "hi",
+    "intent": "greeting"
+  },
+  {
+    "text": "put 2 potato",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "insert half kg of cheese now",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "hey there",
+    "intent": "greeting"
+  },
+  {
+    "text": "delete 2 apple",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "exclude 1 chips",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "namaste",
+    "intent": "greeting"
+  },
+  {
+    "text": "exclude eggs please",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "hello",
+    "intent": "greeting"
+  },
+  {
+    "text": "take out banana",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "drop 2 bread please",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "delete 1 eggs from my cart",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "can you make budget 1000",
+    "intent": "budget_query"
+  },
+  {
+    "text": "display fruits in store",
+    "intent": "show_products"
+  },
+  {
+    "text": "namaste",
+    "intent": "greeting"
+  },
+  {
+    "text": "hello assistant",
+    "intent": "greeting"
+  },
+  {
+    "text": "hello",
+    "intent": "greeting"
+  },
+  {
+    "text": "plan budget 500 rupees",
+    "intent": "budget_query"
+  },
+  {
+    "text": "find products budget 500 rupees",
+    "intent": "budget_query"
+  },
+  {
+    "text": "view items",
+    "intent": "show_products"
+  },
+  {
+    "text": "plan cost 1000 rupees",
+    "intent": "budget_query"
+  },
+  {
+    "text": "include one packet of cheese quickly",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "remove 2 rice",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "delete eggs from my cart",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "delete apple from my cart",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "namaste",
+    "intent": "greeting"
+  },
+  {
+    "text": "i need cheap 100 for groceries",
+    "intent": "budget_query"
+  },
+  {
+    "text": "put 2 potato quickly",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "add half kg of eggs now",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "good evening",
+    "intent": "greeting"
+  },
+  {
+    "text": "remove milk now",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "good afternoon",
+    "intent": "greeting"
+  },
+  {
+    "text": "namaste",
+    "intent": "greeting"
+  },
+  {
+    "text": "i need cost 200 rs",
+    "intent": "budget_query"
+  },
+  {
+    "text": "delete all banana now",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "insert 2 eggs please",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "i need under 700 cart total",
+    "intent": "budget_query"
+  },
+  {
+    "text": "buy 1 milk please",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "list grocery items right now",
+    "intent": "show_products"
+  },
+  {
+    "text": "drop all milk now",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "plan cheap 1000",
+    "intent": "budget_query"
+  },
+  {
+    "text": "delete banana now",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "can you make cost 300 shopping plan",
+    "intent": "budget_query"
+  },
+  {
+    "text": "take out all apple",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "cancel all tomato now",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "take out bread from my cart",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "give grocery items",
+    "intent": "show_products"
+  },
+  {
+    "text": "buy 3 rice",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "find products cost 200",
+    "intent": "budget_query"
+  },
+  {
+    "text": "remove 1 apple",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "namaste",
+    "intent": "greeting"
+  },
+  {
+    "text": "cancel all banana",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "place 1 milk in cart",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "buy 2 butter",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "plan affordable 200 rs",
+    "intent": "budget_query"
+  },
+  {
+    "text": "hey",
+    "intent": "greeting"
+  },
+  {
+    "text": "list products available",
+    "intent": "show_products"
+  },
+  {
+    "text": "plan affordable 100 for groceries",
+    "intent": "budget_query"
+  },
+  {
+    "text": "hello",
+    "intent": "greeting"
+  },
+  {
+    "text": "include 1 banana now",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "take out eggs now",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "put 2 rice please",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "buy 2 eggs in cart",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "plan affordable 500 cart total",
+    "intent": "budget_query"
+  },
+  {
+    "text": "hi bot",
+    "intent": "greeting"
+  },
+  {
+    "text": "hey",
+    "intent": "greeting"
+  },
+  {
+    "text": "display products today",
+    "intent": "show_products"
+  },
+  {
+    "text": "suggest cart cost 500 for groceries",
+    "intent": "budget_query"
+  },
+  {
+    "text": "hey there",
+    "intent": "greeting"
+  },
+  {
+    "text": "buy rice now",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "suggest cart affordable 500 rupees",
+    "intent": "budget_query"
+  },
+  {
+    "text": "display snacks",
+    "intent": "show_products"
+  },
+  {
+    "text": "i need affordable 1000 cart total",
+    "intent": "budget_query"
+  },
+  {
+    "text": "drop all tomato please",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "namaste",
+    "intent": "greeting"
+  },
+  {
+    "text": "give vegetables",
+    "intent": "show_products"
+  },
+  {
+    "text": "include 1 potato to my cart",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "insert one packet of bread",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "yo",
+    "intent": "greeting"
+  },
+  {
+    "text": "sup",
+    "intent": "greeting"
+  },
+  {
+    "text": "buy half kg of banana please",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "can you make affordable 700 rs",
+    "intent": "budget_query"
+  },
+  {
+    "text": "show items cheap 100 shopping plan",
+    "intent": "budget_query"
+  },
+  {
+    "text": "buy bread please",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "insert half kg of eggs now",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "namaste",
+    "intent": "greeting"
+  },
+  {
+    "text": "remove tomato please",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "show vegetables today",
+    "intent": "show_products"
+  },
+  {
+    "text": "i need budget 100",
+    "intent": "budget_query"
+  },
+  {
+    "text": "sup",
+    "intent": "greeting"
+  },
+  {
+    "text": "place bread to my cart",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "i need within 300 shopping plan",
+    "intent": "budget_query"
+  },
+  {
+    "text": "hello assistant",
+    "intent": "greeting"
+  },
+  {
+    "text": "suggest cart budget 500",
+    "intent": "budget_query"
+  },
+  {
+    "text": "find products cost 300 for groceries",
+    "intent": "budget_query"
+  },
+  {
+    "text": "add 3 eggs quickly",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "display vegetables in store",
+    "intent": "show_products"
+  },
+  {
+    "text": "find products within 200",
+    "intent": "budget_query"
+  },
+  {
+    "text": "can you make cost 200 rupees",
+    "intent": "budget_query"
+  },
+  {
+    "text": "hi bot",
+    "intent": "greeting"
+  },
+  {
+    "text": "delete 2 milk from cart",
+    "intent": "remove_from_cart"
+  },
+  {
+    "text": "hey there",
+    "intent": "greeting"
+  },
+  {
+    "text": "buy one packet of apple quickly",
+    "intent": "add_to_cart"
+  },
+  {
+    "text": "display items in store",
+    "intent": "show_products"
+  },
+  {
+    "text": "give fruits right now",
+    "intent": "show_products"
+  },
+  {
+    "text": "display dairy products available",
+    "intent": "show_products"
+  }
+]

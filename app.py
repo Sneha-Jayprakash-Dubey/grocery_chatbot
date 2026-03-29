@@ -8,18 +8,45 @@ import json
 import io
 import csv
 import os
+import pickle
 import random
 import re
 import secrets
 import sqlite3
+import threading
+import time
+from pathlib import Path
 try:
     from pywebpush import WebPushException, webpush
 except Exception:  # pragma: no cover - optional dependency at runtime
     WebPushException = Exception
     webpush = None
 
+def get_app_secret_key():
+    env_key = os.getenv("FLASK_SECRET_KEY")
+    if env_key:
+        return env_key
+
+    key_file = Path(__file__).resolve().parent / ".flask_secret_key"
+    if key_file.exists():
+        try:
+            stored = key_file.read_text(encoding="utf-8").strip()
+            if stored:
+                return stored
+        except Exception:
+            pass
+
+    generated = secrets.token_hex(32)
+    try:
+        key_file.write_text(generated, encoding="utf-8")
+    except Exception:
+        # Fallback: still work even if file write is unavailable.
+        return generated
+    return generated
+
+
 app = Flask(__name__)
-app.secret_key = os.getenv("FLASK_SECRET_KEY", secrets.token_hex(32))
+app.secret_key = get_app_secret_key()
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
@@ -38,6 +65,16 @@ VAPID_PUBLIC_KEY = os.getenv("VAPID_PUBLIC_KEY", "")
 VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY", "")
 VAPID_CLAIMS_SUB = os.getenv("VAPID_CLAIMS_SUB", "mailto:admin@example.com")
 CRON_SECRET = os.getenv("CRON_SECRET", "")
+BUDGET_MODEL_PATH = os.getenv("BUDGET_MODEL_PATH", os.path.join("ml", "models", "regression.pkl"))
+BUDGET_MODEL_CACHE = None
+MIN_PICKUP_LEAD_MINUTES = 15
+MAX_PICKUP_LEAD_HOURS = 72
+PICKUP_SOON_WINDOW_MINUTES = 30
+REMINDER_POLL_SECONDS = 60
+
+_reminder_thread = None
+_reminder_stop_event = threading.Event()
+_reminder_lock = threading.Lock()
 
 VALID_UNITS = {"kg", "g", "litre", "ml", "piece", "packet", "dozen"}
 UNIT_ALIASES = {
@@ -104,6 +141,20 @@ DEFAULT_CATALOG = {
         {"name": "cheese", "price_per_unit": 120, "base_unit": "piece", "aliases": ""},
         {"name": "butter", "price_per_unit": 100, "base_unit": "piece", "aliases": ""},
     ],
+}
+
+RECIPE_KITS = {
+    "pasta": ["tomato", "onion", "cheese", "butter"],
+    "paneer curry": ["paneer", "tomato", "onion", "butter"],
+    "sandwich": ["bread", "butter", "tomato", "onion"],
+    "omelette": ["eggs", "onion", "tomato", "butter"],
+    "fruit bowl": ["apple", "banana", "orange", "mango"],
+}
+
+DIETARY_BLOCKLIST = {
+    "vegan": {"milk", "cheese", "butter", "paneer", "curd", "eggs"},
+    "jain": {"onion", "potato", "carrot", "ginger", "garlic"},
+    "diabetic": {"sugar", "chocolate", "juice", "biscuits"},
 }
 
 
@@ -195,6 +246,47 @@ def init_db():
         )
         conn.execute(
             """
+            CREATE TABLE IF NOT EXISTS family_groups (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                invite_code TEXT UNIQUE NOT NULL,
+                created_by INTEGER NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS family_members (
+                group_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                role TEXT NOT NULL DEFAULT 'member',
+                joined_at TEXT NOT NULL,
+                PRIMARY KEY (group_id, user_id),
+                FOREIGN KEY (group_id) REFERENCES family_groups(id) ON DELETE CASCADE,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS family_list_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                group_id INTEGER NOT NULL,
+                item TEXT NOT NULL,
+                qty REAL NOT NULL DEFAULT 1,
+                unit TEXT,
+                added_by INTEGER,
+                is_checked INTEGER NOT NULL DEFAULT 0,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (group_id) REFERENCES family_groups(id) ON DELETE CASCADE,
+                FOREIGN KEY (added_by) REFERENCES users(id) ON DELETE SET NULL
+            )
+            """
+        )
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS products (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 category_id INTEGER NOT NULL,
@@ -266,6 +358,7 @@ def init_db():
         ensure_column(conn, "products", "is_active", "INTEGER NOT NULL DEFAULT 1")
         ensure_column(conn, "orders", "pickup_time", "TEXT")
         ensure_column(conn, "orders", "reminder_sent", "INTEGER NOT NULL DEFAULT 0")
+        ensure_column(conn, "orders", "pickup_soon_sent", "INTEGER NOT NULL DEFAULT 0")
         ensure_column(conn, "orders", "status", "TEXT DEFAULT 'placed'")
         ensure_column(conn, "orders", "user_id", "INTEGER")
         ensure_column(conn, "orders", "session_user_id", "TEXT")
@@ -287,14 +380,42 @@ def get_user_state():
         state = {
             "orders": [],
             "total": 0,
+            "last_item": None,
             "waiting_for_method": False,
             "waiting_for_address": False,
             "waiting_for_pickup_time": False,
             "language": "english",
+            "notifications": [],
+            "dietary_preference": None,
+            "budget_mode": None,
+            "brand_preferences": {},
+            "item_memory": {},
+            "pending_add": None,
         }
         session["cart_state"] = state
     if "language" not in state:
         state["language"] = "english"
+        session["cart_state"] = state
+    if "last_item" not in state:
+        state["last_item"] = None
+        session["cart_state"] = state
+    if "notifications" not in state:
+        state["notifications"] = []
+        session["cart_state"] = state
+    if "dietary_preference" not in state:
+        state["dietary_preference"] = None
+        session["cart_state"] = state
+    if "budget_mode" not in state:
+        state["budget_mode"] = None
+        session["cart_state"] = state
+    if "brand_preferences" not in state:
+        state["brand_preferences"] = {}
+        session["cart_state"] = state
+    if "item_memory" not in state:
+        state["item_memory"] = {}
+        session["cart_state"] = state
+    if "pending_add" not in state:
+        state["pending_add"] = None
         session["cart_state"] = state
     return state
 
@@ -310,10 +431,17 @@ def clear_user_state():
         {
             "orders": [],
             "total": 0,
+            "last_item": None,
             "waiting_for_method": False,
             "waiting_for_address": False,
             "waiting_for_pickup_time": False,
             "language": state.get("language", "english"),
+            "notifications": state.get("notifications", []),
+            "dietary_preference": state.get("dietary_preference"),
+            "budget_mode": state.get("budget_mode"),
+            "brand_preferences": state.get("brand_preferences", {}),
+            "item_memory": state.get("item_memory", {}),
+            "pending_add": None,
         }
     )
 
@@ -372,17 +500,56 @@ def format_qty(qty):
 def parse_pickup_time(raw_text):
     text = raw_text.strip().lower()
     now = datetime.datetime.now()
+    target_date = now.date()
+
+    if text.startswith("tomorrow "):
+        target_date = now.date() + datetime.timedelta(days=1)
+        text = text[len("tomorrow "):].strip()
+
     formats = ["%H:%M", "%I:%M %p", "%I %p"]
+    parsed_time = None
     for fmt in formats:
         try:
-            t = datetime.datetime.strptime(text, fmt).time()
-            pickup_dt = datetime.datetime.combine(now.date(), t)
-            if pickup_dt <= now:
-                return None, "Please enter a future time (today)."
-            return pickup_dt, None
+            parsed_time = datetime.datetime.strptime(text, fmt).time()
+            break
         except ValueError:
             continue
-    return None, "Invalid time format. Use HH:MM or HH:MM AM/PM."
+
+    if parsed_time is None:
+        return None, "Invalid time format. Use HH:MM, HH:MM AM/PM, or 'tomorrow HH:MM'."
+
+    pickup_dt = datetime.datetime.combine(target_date, parsed_time)
+    lead_minutes = (pickup_dt - now).total_seconds() / 60.0
+    max_lead_minutes = MAX_PICKUP_LEAD_HOURS * 60
+
+    if lead_minutes < MIN_PICKUP_LEAD_MINUTES:
+        return None, f"Pickup time must be at least {MIN_PICKUP_LEAD_MINUTES} minutes from now."
+    if lead_minutes > max_lead_minutes:
+        return None, f"Pickup time is too far. Please choose within next {MAX_PICKUP_LEAD_HOURS} hours."
+    return pickup_dt, None
+
+
+def queue_notification(title, message, order_id=None):
+    state = get_user_state()
+    notes = state.get("notifications", [])
+    notes.append(
+        {
+            "title": str(title),
+            "message": str(message),
+            "order_id": order_id,
+            "created_at": datetime.datetime.now().isoformat(timespec="seconds"),
+        }
+    )
+    state["notifications"] = notes[-30:]
+    save_user_state(state)
+
+
+def pop_notifications():
+    state = get_user_state()
+    notes = state.get("notifications", [])
+    state["notifications"] = []
+    save_user_state(state)
+    return notes
 
 
 def get_session_user_id():
@@ -588,6 +755,76 @@ def process_late_pickup_reminders(send_push=True):
         for reminder in reminders:
             send_web_push_notification(reminder["order_id"], reminder["title"], reminder["message"])
     return reminders
+
+
+def process_pickup_soon_reminders(send_push=True):
+    now = datetime.datetime.now()
+    reminders = []
+    logged_order_ids = []
+    with get_db_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT id, pickup_time
+            FROM orders
+            WHERE method = 'Pickup'
+              AND status = 'placed'
+              AND pickup_time IS NOT NULL
+              AND COALESCE(pickup_soon_sent, 0) = 0
+            ORDER BY created_at ASC
+            """
+        ).fetchall()
+
+        for row in rows:
+            try:
+                pickup_dt = datetime.datetime.fromisoformat(row["pickup_time"])
+            except (TypeError, ValueError):
+                continue
+
+            mins_to_pickup = (pickup_dt - now).total_seconds() / 60.0
+            if mins_to_pickup < 0 or mins_to_pickup > PICKUP_SOON_WINDOW_MINUTES:
+                continue
+
+            order_id = row["id"]
+            conn.execute("UPDATE orders SET pickup_soon_sent = 1 WHERE id = ?", (order_id,))
+            rounded = int(max(0, round(mins_to_pickup)))
+            msg = f"Order {order_id}: Pickup is in about {rounded} minutes."
+            reminders.append({"order_id": order_id, "title": "Pickup Soon", "message": msg})
+            logged_order_ids.append(order_id)
+
+        conn.commit()
+
+    for order_id in logged_order_ids:
+        log_event("pickup_soon_reminder", {"message": f"Pickup within {PICKUP_SOON_WINDOW_MINUTES} minutes."}, order_id=order_id)
+
+    if send_push:
+        for reminder in reminders:
+            send_web_push_notification(reminder["order_id"], reminder["title"], reminder["message"])
+    return reminders
+
+
+def _background_reminder_worker():
+    while not _reminder_stop_event.is_set():
+        try:
+            process_pickup_soon_reminders(send_push=True)
+            process_late_pickup_reminders(send_push=True)
+        except Exception:
+            # Keep worker alive even if one cycle fails.
+            pass
+        _reminder_stop_event.wait(REMINDER_POLL_SECONDS)
+
+
+def start_background_reminder_worker():
+    global _reminder_thread
+    with _reminder_lock:
+        if _reminder_thread and _reminder_thread.is_alive():
+            return
+        _reminder_stop_event.clear()
+        _reminder_thread = threading.Thread(
+            target=_background_reminder_worker,
+            name="reminder-worker",
+            daemon=True,
+        )
+        _reminder_thread.start()
 
 
 def fetch_order_training_rows(limit=1000):
@@ -838,6 +1075,433 @@ def fetch_orders_for_user_history(user_id, limit=10):
     return [dict(r) for r in rows]
 
 
+def get_family_group_for_user(user_id):
+    if not user_id:
+        return None
+    with get_db_connection() as conn:
+        row = conn.execute(
+            """
+            SELECT fg.id, fg.name, fg.invite_code
+            FROM family_members fm
+            JOIN family_groups fg ON fg.id = fm.group_id
+            WHERE fm.user_id = ?
+            LIMIT 1
+            """,
+            (user_id,),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def create_family_group(user_id, family_name):
+    if not user_id:
+        return None, "Please login first."
+    existing = get_family_group_for_user(user_id)
+    if existing:
+        return existing, f"You are already in family '{existing['name']}'."
+
+    created_at = datetime.datetime.now().isoformat(timespec="seconds")
+    for _ in range(5):
+        code = "FM" + "".join(random.choice("ABCDEFGHJKLMNPQRSTUVWXYZ23456789") for _ in range(6))
+        try:
+            with get_db_connection() as conn:
+                cur = conn.execute(
+                    "INSERT INTO family_groups(name, invite_code, created_by, created_at) VALUES (?, ?, ?, ?)",
+                    (family_name, code, user_id, created_at),
+                )
+                group_id = cur.lastrowid
+                conn.execute(
+                    "INSERT INTO family_members(group_id, user_id, role, joined_at) VALUES (?, ?, 'owner', ?)",
+                    (group_id, user_id, created_at),
+                )
+                conn.commit()
+            return {"id": group_id, "name": family_name, "invite_code": code}, None
+        except sqlite3.IntegrityError:
+            continue
+    return None, "Could not create family right now. Please try again."
+
+
+def join_family_group(user_id, invite_code):
+    if not user_id:
+        return None, "Please login first."
+    existing = get_family_group_for_user(user_id)
+    if existing:
+        return existing, f"You are already in family '{existing['name']}'."
+
+    code = (invite_code or "").strip().upper()
+    if not code:
+        return None, "Please provide a valid family invite code."
+
+    with get_db_connection() as conn:
+        grp = conn.execute(
+            "SELECT id, name, invite_code FROM family_groups WHERE invite_code = ?",
+            (code,),
+        ).fetchone()
+        if not grp:
+            return None, "Invalid family invite code."
+        try:
+            conn.execute(
+                "INSERT INTO family_members(group_id, user_id, role, joined_at) VALUES (?, ?, 'member', ?)",
+                (int(grp["id"]), user_id, datetime.datetime.now().isoformat(timespec="seconds")),
+            )
+            conn.commit()
+        except sqlite3.IntegrityError:
+            pass
+    return {"id": int(grp["id"]), "name": grp["name"], "invite_code": grp["invite_code"]}, None
+
+
+def add_family_list_item(user_id, item, qty=1.0, unit=None):
+    grp = get_family_group_for_user(user_id)
+    if not grp:
+        return False, "You are not in a family group. Use 'create family <name>' or 'join family <code>'."
+
+    item_name = normalize_text(item).strip()
+    if not item_name:
+        return False, "Please provide item name."
+    qty = max(float(qty), 0.01)
+    now = datetime.datetime.now().isoformat(timespec="seconds")
+
+    with get_db_connection() as conn:
+        row = conn.execute(
+            """
+            SELECT id, qty
+            FROM family_list_items
+            WHERE group_id = ? AND lower(item) = lower(?) AND COALESCE(unit,'') = COALESCE(?, '')
+            LIMIT 1
+            """,
+            (int(grp["id"]), item_name, unit),
+        ).fetchone()
+        if row:
+            conn.execute(
+                "UPDATE family_list_items SET qty = ?, updated_at = ?, is_checked = 0 WHERE id = ?",
+                (float(row["qty"]) + qty, now, int(row["id"])),
+            )
+        else:
+            conn.execute(
+                """
+                INSERT INTO family_list_items(group_id, item, qty, unit, added_by, is_checked, updated_at)
+                VALUES (?, ?, ?, ?, ?, 0, ?)
+                """,
+                (int(grp["id"]), item_name, qty, unit, user_id, now),
+            )
+        conn.commit()
+    return True, f"Added {format_qty(qty)} {unit or ''} {item_name.title()} to family list.".replace("  ", " ").strip()
+
+
+def remove_family_list_item(user_id, item, qty=1.0):
+    grp = get_family_group_for_user(user_id)
+    if not grp:
+        return False, "You are not in a family group."
+
+    item_name = normalize_text(item).strip()
+    if not item_name:
+        return False, "Please provide item name."
+    qty = max(float(qty), 0.01)
+
+    with get_db_connection() as conn:
+        row = conn.execute(
+            """
+            SELECT id, qty, item
+            FROM family_list_items
+            WHERE group_id = ? AND lower(item) = lower(?)
+            ORDER BY updated_at DESC
+            LIMIT 1
+            """,
+            (int(grp["id"]), item_name),
+        ).fetchone()
+        if not row:
+            return False, f"{item_name.title()} is not in family list."
+        remaining = float(row["qty"]) - qty
+        if remaining <= 0:
+            conn.execute("DELETE FROM family_list_items WHERE id = ?", (int(row["id"]),))
+        else:
+            conn.execute(
+                "UPDATE family_list_items SET qty = ?, updated_at = ? WHERE id = ?",
+                (remaining, datetime.datetime.now().isoformat(timespec="seconds"), int(row["id"])),
+            )
+        conn.commit()
+    return True, f"Updated family list for {item_name.title()}."
+
+
+def fetch_family_list(user_id):
+    grp = get_family_group_for_user(user_id)
+    if not grp:
+        return None, []
+    with get_db_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT fli.item, fli.qty, fli.unit, fli.updated_at, u.username AS added_by
+            FROM family_list_items fli
+            LEFT JOIN users u ON u.id = fli.added_by
+            WHERE fli.group_id = ? AND COALESCE(fli.is_checked, 0) = 0
+            ORDER BY fli.updated_at DESC, fli.item ASC
+            """,
+            (int(grp["id"]),),
+        ).fetchall()
+    return grp, [dict(r) for r in rows]
+
+
+def normalize_item_key(item_name):
+    key = normalize_text(item_name or "").strip()
+    if key.endswith("es") and len(key) > 3:
+        key = key[:-2]
+    elif key.endswith("s") and len(key) > 2:
+        key = key[:-1]
+    return key
+
+
+def fetch_family_order_timeline(user_id, limit=25):
+    grp = get_family_group_for_user(user_id)
+    if not grp:
+        return None, []
+    with get_db_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT o.id AS order_id, o.created_at, u.username, oi.item, oi.qty, oi.unit, oi.line_total
+            FROM orders o
+            JOIN family_members fm ON fm.user_id = o.user_id
+            JOIN order_items oi ON oi.order_id = o.id
+            LEFT JOIN users u ON u.id = o.user_id
+            WHERE fm.group_id = ?
+              AND o.status = 'placed'
+            ORDER BY o.created_at DESC, o.id DESC
+            LIMIT ?
+            """,
+            (int(grp["id"]), int(limit)),
+        ).fetchall()
+    return grp, [dict(r) for r in rows]
+
+
+def fetch_recent_family_item_activity(user_id, item_name, lookback_days=14, limit=5):
+    grp = get_family_group_for_user(user_id)
+    if not grp:
+        return None, []
+    item_key = normalize_item_key(item_name)
+    if not item_key:
+        return grp, []
+
+    cutoff = (datetime.datetime.now() - datetime.timedelta(days=lookback_days)).isoformat(timespec="seconds")
+    with get_db_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT o.created_at, u.username, oi.item, oi.qty, oi.unit
+            FROM orders o
+            JOIN family_members fm ON fm.user_id = o.user_id
+            JOIN order_items oi ON oi.order_id = o.id
+            LEFT JOIN users u ON u.id = o.user_id
+            WHERE fm.group_id = ?
+              AND o.status = 'placed'
+              AND o.created_at >= ?
+            ORDER BY o.created_at DESC
+            """,
+            (int(grp["id"]), cutoff),
+        ).fetchall()
+
+    matches = []
+    for r in rows:
+        row_key = normalize_item_key(r["item"])
+        if row_key == item_key or item_key in row_key or row_key in item_key:
+            matches.append(dict(r))
+        if len(matches) >= limit:
+            break
+    return grp, matches
+
+
+def build_family_duplicate_hint(user_id, item_name, lookback_days=7):
+    grp, recent = fetch_recent_family_item_activity(user_id, item_name, lookback_days=lookback_days, limit=3)
+    if not grp or not recent:
+        return None
+    _, estimate = estimate_family_item_stock(user_id, item_name, lookback_days=60)
+    estimate_line = ""
+    if estimate:
+        estimate_line = (
+            f"\nEstimated stock left: {estimate['score']}% ({estimate['label']})"
+            f" | last bought {estimate['days_since_last']} days ago."
+        )
+    lines = []
+    for r in recent:
+        try:
+            dt = datetime.datetime.fromisoformat(r["created_at"])
+            day_label = dt.strftime("%a %d %b")
+        except Exception:
+            day_label = str(r["created_at"])
+        lines.append(
+            f"- {day_label}: {r.get('username') or 'member'} bought {r['item'].title()} {format_qty(r['qty'])} {r['unit'] or ''}".replace("  ", " ").strip()
+        )
+    return (
+        f"Family already bought {item_name.title()} recently.\n"
+        + "\n".join(lines)
+        + estimate_line
+        + "\nIf you still need more stock, say 'add anyway'."
+    )
+
+
+def estimate_family_item_stock(user_id, item_name, lookback_days=60):
+    grp, rows = fetch_recent_family_item_activity(user_id, item_name, lookback_days=lookback_days, limit=200)
+    if not grp or not rows:
+        return grp, None
+
+    parsed = []
+    for r in rows:
+        try:
+            dt = datetime.datetime.fromisoformat(r["created_at"])
+        except Exception:
+            continue
+        parsed.append(
+            {
+                "created_at": dt,
+                "qty": float(r.get("qty", 1.0)),
+                "unit": r.get("unit"),
+                "item": r.get("item"),
+                "username": r.get("username"),
+            }
+        )
+    if not parsed:
+        return grp, None
+
+    parsed.sort(key=lambda x: x["created_at"], reverse=True)
+    latest = parsed[0]
+    earliest = parsed[-1]
+    span_days = max((latest["created_at"] - earliest["created_at"]).total_seconds() / 86400.0, 1.0)
+    total_qty = sum(max(p["qty"], 0.0) for p in parsed)
+    daily_use = total_qty / span_days
+    daily_use = max(daily_use, 1e-6)
+
+    latest_qty = max(latest["qty"], 0.0)
+    estimated_coverage_days = latest_qty / daily_use
+    days_since_last = max((datetime.datetime.now() - latest["created_at"]).total_seconds() / 86400.0, 0.0)
+
+    if estimated_coverage_days <= 0:
+        stock_left_ratio = 0.0
+    else:
+        stock_left_ratio = max(0.0, min(1.0, 1.0 - (days_since_last / estimated_coverage_days)))
+
+    score = int(round(stock_left_ratio * 100))
+    if score >= 67:
+        label = "High"
+    elif score >= 34:
+        label = "Medium"
+    else:
+        label = "Low"
+
+    return grp, {
+        "item": latest["item"],
+        "unit": latest.get("unit"),
+        "score": score,
+        "label": label,
+        "days_since_last": round(days_since_last, 1),
+        "estimated_coverage_days": round(estimated_coverage_days, 1),
+        "latest_qty": latest_qty,
+        "latest_buyer": latest.get("username") or "member",
+        "latest_time": latest["created_at"].isoformat(timespec="seconds"),
+        "samples": len(parsed),
+    }
+
+
+def fetch_family_stock_snapshot(user_id, max_items=8):
+    grp = get_family_group_for_user(user_id)
+    if not grp:
+        return None, []
+    timeline_grp, rows = fetch_family_order_timeline(user_id, limit=250)
+    if not timeline_grp or not rows:
+        return grp, []
+
+    seen = []
+    seen_keys = set()
+    for r in rows:
+        key = normalize_item_key(r.get("item", ""))
+        if not key or key in seen_keys:
+            continue
+        seen_keys.add(key)
+        seen.append(r["item"])
+        if len(seen) >= max_items:
+            break
+
+    snapshot = []
+    for item in seen:
+        _, est = estimate_family_item_stock(user_id, item, lookback_days=60)
+        if est:
+            snapshot.append(est)
+
+    snapshot.sort(key=lambda x: x["score"])
+    return grp, snapshot
+
+
+def fetch_monthly_insights(user_id, dt=None):
+    if not user_id:
+        return None
+    current = dt or datetime.datetime.now()
+    start = datetime.datetime(current.year, current.month, 1)
+    if current.month == 12:
+        end = datetime.datetime(current.year + 1, 1, 1)
+    else:
+        end = datetime.datetime(current.year, current.month + 1, 1)
+
+    with get_db_connection() as conn:
+        order_rows = conn.execute(
+            """
+            SELECT id, total
+            FROM orders
+            WHERE user_id = ?
+              AND status = 'placed'
+              AND created_at >= ?
+              AND created_at < ?
+            """,
+            (user_id, start.isoformat(timespec="seconds"), end.isoformat(timespec="seconds")),
+        ).fetchall()
+        if not order_rows:
+            return {
+                "month_label": start.strftime("%B %Y"),
+                "total_spend": 0.0,
+                "top_category": None,
+                "snacks_spend": 0.0,
+                "order_count": 0,
+            }
+
+        order_ids = [r["id"] for r in order_rows]
+        placeholders = ",".join("?" for _ in order_ids)
+        item_rows = conn.execute(
+            f"""
+            SELECT oi.item, oi.item_id, oi.line_total
+            FROM order_items oi
+            WHERE oi.order_id IN ({placeholders})
+            """,
+            tuple(order_ids),
+        ).fetchall()
+        product_rows = conn.execute(
+            """
+            SELECT p.id, p.name, c.name AS category
+            FROM products p
+            JOIN categories c ON c.id = p.category_id
+            """
+        ).fetchall()
+
+    categories_by_id = {int(r["id"]): r["category"] for r in product_rows}
+    categories_by_name = {str(r["name"]).lower().strip(): r["category"] for r in product_rows}
+
+    category_spend = {}
+    for row in item_rows:
+        item_id = row["item_id"]
+        cat = None
+        if item_id is not None and int(item_id) in categories_by_id:
+            cat = categories_by_id[int(item_id)]
+        if not cat:
+            cat = categories_by_name.get(str(row["item"]).lower().strip(), "other")
+        category_spend[cat] = category_spend.get(cat, 0.0) + float(row["line_total"])
+
+    total_spend = float(sum(float(r["total"]) for r in order_rows))
+    top_category = None
+    if category_spend:
+        top_category = max(category_spend.items(), key=lambda kv: kv[1])[0]
+    snacks_spend = float(category_spend.get("snacks", 0.0))
+    return {
+        "month_label": start.strftime("%B %Y"),
+        "total_spend": round(total_spend, 2),
+        "top_category": top_category,
+        "snacks_spend": round(snacks_spend, 2),
+        "order_count": int(len(order_rows)),
+    }
+
+
 def resolve_cancellable_order_id():
     last_order_id = session.get("last_order_id")
     if last_order_id:
@@ -940,6 +1604,16 @@ def fetch_recent_orders(limit=100):
 
 def is_admin_authenticated():
     return session.get("admin_authenticated", False)
+
+
+def is_user_authenticated():
+    return bool(get_logged_in_user_id())
+
+
+def require_user_login():
+    if not is_user_authenticated():
+        return jsonify({"error": "Authentication required. Please login or register."}), 401
+    return None
 
 
 def validate_admin_password(password):
@@ -1091,6 +1765,11 @@ def looks_like_product_request(message, qty, unit):
     return False
 
 
+def is_context_followup_message(message):
+    lowered = normalize_text(message)
+    return bool(re.search(r"\b(more|same|again|another|it|them)\b", lowered))
+
+
 def is_not_coming_message(message):
     m = message.strip().lower()
     exact = {
@@ -1213,14 +1892,428 @@ def products_for_category(category_name):
     return [dict(r) for r in rows]
 
 
+def detect_dietary_preference(message):
+    text = normalize_text(message)
+    if "vegan" in text:
+        return "vegan"
+    if "jain" in text:
+        return "jain"
+    if "diabetic" in text or "low sugar" in text:
+        return "diabetic"
+    return None
+
+
+def filter_items_for_diet(items, dietary_preference):
+    if not dietary_preference:
+        return list(items)
+    blocked = DIETARY_BLOCKLIST.get(dietary_preference, set())
+    return [it for it in items if it not in blocked]
+
+
+def infer_recipe_from_message(message):
+    text = normalize_text(message)
+    for recipe_name in RECIPE_KITS:
+        if recipe_name in text:
+            return recipe_name
+    if "making pasta" in text:
+        return "pasta"
+    return None
+
+
+def build_recipe_plan(recipe_name, dietary_preference=None):
+    needed = RECIPE_KITS.get(recipe_name, [])
+    needed = filter_items_for_diet(needed, dietary_preference)
+    if not needed:
+        return None
+
+    available = fetch_products(include_inactive=False)
+    available_by_name = {p["name"]: p for p in available}
+    in_stock = [n for n in needed if n in available_by_name]
+    missing = [n for n in needed if n not in available_by_name]
+
+    lines = []
+    for name in in_stock:
+        p = available_by_name[name]
+        lines.append(f"- {name.title()}: Rs {int(round(float(p['price_per_unit'])))} / {p['base_unit']}")
+    if missing:
+        lines.append(f"Missing right now: {', '.join(m.title() for m in missing)}")
+    return lines
+
+
+def add_recipe_to_cart(recipe_name, state):
+    recipe_key = normalize_text(recipe_name).strip()
+    if recipe_key not in RECIPE_KITS:
+        return False, f"I do not have a recipe kit for {recipe_name}.", []
+
+    desired = RECIPE_KITS[recipe_key]
+    desired = filter_items_for_diet(desired, state.get("dietary_preference"))
+    if not desired:
+        return False, "No ingredients available after applying dietary preference.", []
+
+    added_items = []
+    orders = state["orders"]
+    total = state["total"]
+    for item_name in desired:
+        product = find_best_product_match(item_name, include_inactive=False)
+        if not product:
+            continue
+        qty_in_base = 1.0
+        line_total = int(round(float(product["price_per_unit"]) * qty_in_base))
+        orders.append(
+            {
+                "item_id": product["id"],
+                "item": product["name"],
+                "qty": qty_in_base,
+                "unit": product["base_unit"],
+                "price_per_unit": float(product["price_per_unit"]),
+                "line_total": line_total,
+            }
+        )
+        total += line_total
+        state["last_item"] = product["name"]
+        mem = state.get("item_memory", {})
+        mem[product["name"]] = int(mem.get(product["name"], 0) + 1)
+        state["item_memory"] = mem
+        added_items.append(product["name"])
+
+    state["orders"] = orders
+    state["total"] = total
+    save_user_state(state)
+    if not added_items:
+        return False, f"No ingredients from {recipe_name} are currently available.", []
+    return True, f"Added ingredients for {recipe_name.title()}: {', '.join(i.title() for i in added_items)}.", added_items
+
+
+def fetch_restock_suggestions(limit=5):
+    user_id = get_logged_in_user_id()
+    session_user_id = get_session_user_id()
+    with get_db_connection() as conn:
+        if user_id:
+            rows = conn.execute(
+                """
+                SELECT oi.item, COUNT(*) AS times, MAX(o.created_at) AS last_time
+                FROM orders o
+                JOIN order_items oi ON oi.order_id = o.id
+                WHERE o.status = 'placed' AND o.user_id = ?
+                GROUP BY oi.item
+                ORDER BY times DESC, last_time DESC
+                LIMIT ?
+                """,
+                (user_id, limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """
+                SELECT oi.item, COUNT(*) AS times, MAX(o.created_at) AS last_time
+                FROM orders o
+                JOIN order_items oi ON oi.order_id = o.id
+                WHERE o.status = 'placed' AND o.session_user_id = ?
+                GROUP BY oi.item
+                ORDER BY times DESC, last_time DESC
+                LIMIT ?
+                """,
+                (session_user_id, limit),
+            ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def handle_lifestyle_context(message, state):
+    text = normalize_text(message)
+
+    brand_match = re.search(r"\bprefer\s+([a-z0-9]+)\s+(?:for\s+)?([a-z\s]+)$", text)
+    if brand_match:
+        brand = brand_match.group(1).strip()
+        item = brand_match.group(2).strip()
+        prefs = state.get("brand_preferences", {})
+        prefs[item] = brand
+        state["brand_preferences"] = prefs
+        save_user_state(state)
+        return f"Saved brand preference: {brand.title()} for {item.title()}."
+
+    diet = detect_dietary_preference(text)
+    if diet:
+        state["dietary_preference"] = diet
+        save_user_state(state)
+        return f"Saved your preference: {diet.title()}. I will adapt suggestions accordingly."
+
+    if "budget is tight" in text or "tight budget" in text:
+        state["budget_mode"] = "tight"
+        save_user_state(state)
+        return "Understood. I will prioritize affordable essentials in suggestions this week."
+
+    if any(k in text for k in ["guests", "party", "friends coming"]):
+        return "Got it. For guests, I suggest quick picks: chips, biscuits, juice, fruits, and easy snacks."
+
+    if any(k in text for k in ["i am sick", "not well", "fever", "cold"]):
+        return "Take care. Suggested gentle items: curd, bananas, oats, bread, and light fruits."
+
+    if any(k in text for k in ["running low", "restock", "reorder essentials"]):
+        restock = fetch_restock_suggestions(limit=5)
+        if not restock:
+            return "I need a bit more order history to suggest restock items. Place a few orders and ask again."
+        lines = "\n".join([f"- {r['item'].title()} (ordered {r['times']} times)" for r in restock])
+        return f"Based on your history, consider restocking:\n{lines}"
+
+    recipe = infer_recipe_from_message(text)
+    if recipe:
+        plan = build_recipe_plan(recipe, dietary_preference=state.get("dietary_preference"))
+        if not plan:
+            return "I could not build a recipe plan with current dietary settings."
+        return {
+            "reply": f"Great idea. For {recipe.title()}, add:\n" + "\n".join(plan),
+            "actions": [
+                {"label": f"Add All {recipe.title()}", "message": f"add recipe {recipe}"},
+                {"label": "Show Cart", "message": "bill"},
+            ],
+        }
+
+    if "what can i cook with" in text:
+        ingredient = text.split("what can i cook with", 1)[1].strip()
+        matches = [name for name, items in RECIPE_KITS.items() if ingredient and ingredient in " ".join(items)]
+        if matches:
+            return "You can make: " + ", ".join(m.title() for m in matches[:4]) + ". Say 'making <recipe>' to get an ingredient plan."
+        return f"I do not have a recipe set for {ingredient} yet, but I can still help build a custom cart."
+
+    return None
+
+
+def load_budget_model():
+    global BUDGET_MODEL_CACHE
+    if BUDGET_MODEL_CACHE is not None:
+        return BUDGET_MODEL_CACHE
+
+    model_path = BUDGET_MODEL_PATH
+    if not os.path.isabs(model_path):
+        model_path = os.path.join(os.path.dirname(__file__), model_path)
+    if not os.path.exists(model_path):
+        return None
+
+    try:
+        with open(model_path, "rb") as fp:
+            BUDGET_MODEL_CACHE = pickle.load(fp)
+    except Exception:
+        BUDGET_MODEL_CACHE = None
+    return BUDGET_MODEL_CACHE
+
+
+def parse_budget_request(raw_message):
+    text = normalize_text(raw_message)
+    match = re.search(r"\b(\d+(?:\.\d+)?)\b", text)
+    if not match:
+        return None, None
+    budget = float(match.group(1))
+    category = None
+    for c in list_categories():
+        if c["name"].lower() in text:
+            category = c["name"].lower()
+            break
+    return budget, category
+
+
+def optimize_budget_plan(budget, preferred_category=None):
+    if budget <= 0:
+        return {"error": "Budget must be greater than 0."}, 400
+
+    products = fetch_products(include_inactive=False)
+    if not products:
+        return {"error": "No active products available for optimization."}, 404
+
+    normalized = []
+    for p in products:
+        normalized.append(
+            {
+                "product_id": int(p["id"]),
+                "name": str(p["name"]),
+                "category": str(p["category"]).lower().strip(),
+                "price": float(p["price_per_unit"]),
+                "demand_score": 1.0,
+                "stock": 10,
+            }
+        )
+
+    if preferred_category:
+        preferred = preferred_category.lower().strip()
+        category_only = [p for p in normalized if p["category"] == preferred]
+        if not category_only:
+            return {
+                "error": f"No active products found in category '{preferred_category}'. Try another category."
+            }, 404
+        normalized = category_only
+
+    model = load_budget_model()
+    chosen = []
+    total = 0.0
+
+    if model is not None:
+        try:
+            import numpy as np
+            import pandas as pd
+
+            df = pd.DataFrame(normalized)
+            df["budget"] = np.float64(budget)
+            df["preferred_category"] = (preferred_category or "none").lower().strip()
+            features = df[["budget", "price", "demand_score", "category", "preferred_category"]]
+            predicted_qty = model.predict(features).astype(np.float64)
+            predicted_qty = np.clip(predicted_qty, 0.0, 6.0)
+            safe_price = np.maximum(df["price"].to_numpy(dtype=np.float64), np.float64(1e-6))
+            utility = predicted_qty * (1.0 + df["demand_score"].to_numpy(dtype=np.float64)) / safe_price
+            df["utility"] = utility
+            df["pred_qty"] = np.maximum(np.rint(predicted_qty), 1).astype(int)
+
+            for _, row in df.sort_values("utility", ascending=False).iterrows():
+                qty = int(row["pred_qty"])
+                line_total = float(row["price"]) * qty
+                if total + line_total > budget:
+                    qty = int((budget - total) // float(row["price"]))
+                    line_total = float(row["price"]) * qty
+                if qty <= 0:
+                    continue
+                chosen.append(
+                    {
+                        "product_id": int(row["product_id"]),
+                        "name": str(row["name"]),
+                        "category": str(row["category"]),
+                        "qty": qty,
+                        "unit_price": round(float(row["price"]), 2),
+                        "line_total": round(line_total, 2),
+                    }
+                )
+                total += line_total
+                if total >= budget:
+                    break
+        except Exception:
+            chosen = []
+            total = 0.0
+
+    if not chosen:
+        ranked = sorted(
+            normalized,
+            key=lambda x: (
+                1 if preferred_category and x["category"] == preferred_category.lower().strip() else 0,
+                -(x["demand_score"] / max(x["price"], 1e-6)),
+            ),
+            reverse=True,
+        )
+        for p in ranked:
+            qty = int((budget - total) // p["price"])
+            if qty <= 0:
+                continue
+            qty = min(qty, 2)
+            line_total = p["price"] * qty
+            chosen.append(
+                {
+                    "product_id": p["product_id"],
+                    "name": p["name"],
+                    "category": p["category"],
+                    "qty": qty,
+                    "unit_price": round(p["price"], 2),
+                    "line_total": round(line_total, 2),
+                }
+            )
+            total += line_total
+            if total >= budget:
+                break
+
+    if preferred_category:
+        preferred = preferred_category.lower().strip()
+        chosen = [it for it in chosen if str(it.get("category", "")).lower().strip() == preferred]
+        total = float(sum(float(it.get("line_total", 0.0)) for it in chosen))
+
+    return {
+        "budget": float(round(budget, 2)),
+        "preferred_category": preferred_category,
+        "items": chosen,
+        "total": float(round(total, 2)),
+        "remaining": float(round(budget - total, 2)),
+    }, 200
+
+
 @app.route("/")
 def home():
     return render_template("index.html")
 
 
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify({"ok": True, "service": "grocery_chatbot"})
+
+
+@app.route("/cart", methods=["GET"])
+def cart_view():
+    guard = require_user_login()
+    if guard:
+        return guard
+
+    state = get_user_state()
+    orders = state.get("orders", [])
+    total = state.get("total", 0)
+    normalized_items = [
+        {
+            "item_id": it.get("item_id"),
+            "item": it.get("item"),
+            "qty": float(it.get("qty", 0)),
+            "unit": it.get("unit"),
+            "price_per_unit": float(it.get("price_per_unit", 0)),
+            "line_total": int(it.get("line_total", 0)),
+        }
+        for it in orders
+    ]
+    return jsonify({"items": normalized_items, "total": int(total)})
+
+
+@app.route("/budget", methods=["GET"])
+def budget_home():
+    budget = request.args.get("budget", type=float)
+    preferred_category = request.args.get("preferred_category", default=None, type=str)
+    if budget is not None:
+        result, status = optimize_budget_plan(budget, preferred_category=preferred_category)
+        return jsonify(result), status
+    return jsonify(
+        {
+            "message": "Budget planner is ready. Use /budget?budget=300&preferred_category=fruits or POST /budget/optimize with JSON body.",
+            "example_get": "/budget?budget=300&preferred_category=fruits",
+            "example_post": {"budget": 300, "preferred_category": "fruits"},
+        }
+    )
+
+
+@app.route("/budget/optimize", methods=["GET", "POST"])
+def budget_optimize():
+    if request.method == "GET":
+        budget = request.args.get("budget", type=float)
+        preferred_category = request.args.get("preferred_category", default=None, type=str)
+    else:
+        payload = request.get_json(silent=True) or {}
+        try:
+            budget = float(payload.get("budget", 0))
+        except (TypeError, ValueError):
+            budget = 0.0
+        preferred_category = payload.get("preferred_category")
+
+    if budget is None or budget <= 0:
+        return jsonify(
+            {
+                "error": "Provide a valid budget > 0.",
+                "example_get": "/budget/optimize?budget=300&preferred_category=fruits",
+                "example_post": {"budget": 300, "preferred_category": "fruits"},
+            }
+        ), 400
+
+    result, status = optimize_budget_plan(budget, preferred_category=preferred_category)
+    return jsonify(result), status
+
+
 @app.route("/sw.js")
 def service_worker():
     return send_from_directory("static", "sw.js")
+
+
+@app.route("/favicon.ico")
+def favicon():
+    icon_path = os.path.join(app.root_path, "static", "favicon.ico")
+    if os.path.exists(icon_path):
+        return send_from_directory("static", "favicon.ico")
+    return ("", 204)
 
 
 @app.route("/push/public-key", methods=["GET"])
@@ -1250,8 +2343,9 @@ def internal_run_reminders():
     auth_header = request.headers.get("X-Internal-Token", "")
     if not CRON_SECRET or auth_header != CRON_SECRET:
         return jsonify({"error": "Unauthorized"}), 401
+    soon = process_pickup_soon_reminders(send_push=True)
     reminders = process_late_pickup_reminders(send_push=True)
-    return jsonify({"processed": len(reminders)})
+    return jsonify({"processed": len(soon) + len(reminders), "pickup_soon": len(soon), "pickup_late": len(reminders)})
 
 
 @app.route("/auth/register", methods=["POST"])
@@ -1682,22 +2776,37 @@ def admin_cancellations():
 
 @app.route("/notifications", methods=["GET"])
 def customer_notifications():
+    guard = require_user_login()
+    if guard:
+        return guard
+    soon = process_pickup_soon_reminders(send_push=True)
     reminders = process_late_pickup_reminders(send_push=True)
-    order_id = session.get("last_order_id")
-    if not order_id:
-        return jsonify({"notifications": []})
-    own = [r for r in reminders if r["order_id"] == order_id]
-    if own:
-        return jsonify({"notifications": [{"title": own[0]["title"], "message": own[0]["message"]}]})
-    return jsonify({"notifications": []})
+    queued = pop_notifications()
+
+    known_orders = set(session.get("order_history", []))
+    last_order = session.get("last_order_id")
+    if last_order:
+        known_orders.add(last_order)
+
+    dynamic = []
+    for item in (soon + reminders):
+        if item.get("order_id") in known_orders:
+            dynamic.append({"title": item["title"], "message": item["message"], "order_id": item.get("order_id")})
+
+    return jsonify({"notifications": queued + dynamic})
 
 
 @app.route("/get", methods=["POST"])
 def chat():
+    guard = require_user_login()
+    if guard:
+        return guard
+
     req_json = request.get_json(silent=True) or {}
     raw_message = req_json.get("message", "")
     msg = normalize_text(raw_message)
     log_event("chat_message", {"raw_message": raw_message, "normalized_message": msg})
+    process_pickup_soon_reminders(send_push=True)
     process_late_pickup_reminders(send_push=True)
 
     state = get_user_state()
@@ -1711,6 +2820,187 @@ def chat():
         labels = {"english": "English", "hindi": "Hindi", "hinglish": "Hinglish"}
         log_event("language_changed", {"language": requested_language})
         return jsonify({"reply": reply_text(state, f"Language changed to {labels[requested_language]}.", f"Bhasha {labels[requested_language]} me badal di gayi hai.", f"Language ab {labels[requested_language]} mode me set hai.")})
+
+    if re.match(r"^\s*add anyway\b", msg):
+        pending = state.get("pending_add")
+        if not pending:
+            return jsonify({"reply": "There is nothing pending to add. Please tell me the item, like 'add milk 2'."})
+        product = find_best_product_match(str(pending.get("item", "")), include_inactive=False)
+        if not product:
+            state["pending_add"] = None
+            save_user_state(state)
+            return jsonify({"reply": "The previously requested item is not available now. Please try another item."})
+        qty = float(pending.get("qty", 1.0))
+        user_unit = pending.get("unit")
+        qty_in_base, err = convert_quantity_to_base(qty, user_unit, product["base_unit"])
+        if err:
+            state["pending_add"] = None
+            save_user_state(state)
+            return jsonify({"reply": err})
+        line_total = int(round(float(product["price_per_unit"]) * qty_in_base))
+        orders.append(
+            {
+                "item_id": product["id"],
+                "item": product["name"],
+                "qty": qty_in_base,
+                "unit": product["base_unit"],
+                "price_per_unit": float(product["price_per_unit"]),
+                "line_total": line_total,
+            }
+        )
+        total += line_total
+        state["orders"] = orders
+        state["total"] = total
+        state["last_item"] = product["name"]
+        state["pending_add"] = None
+        mem = state.get("item_memory", {})
+        mem[product["name"]] = int(mem.get(product["name"], 0) + 1)
+        state["item_memory"] = mem
+        save_user_state(state)
+        log_event(
+            "cart_item_added_override",
+            {
+                "item": product["name"],
+                "qty_base": qty_in_base,
+                "unit": product["base_unit"],
+                "line_total": line_total,
+                "cart_total": total,
+                "reason": "user_override_add_anyway",
+            },
+        )
+        return jsonify({"reply": f"Added {product['name'].title()} {format_qty(qty_in_base)} {product['base_unit']}. Total: Rs {total}"})
+
+    add_recipe_match = re.match(r"^\s*add recipe\s+(.+?)\s*$", msg)
+    if add_recipe_match:
+        recipe_name = add_recipe_match.group(1).strip()
+        ok, info, added_items = add_recipe_to_cart(recipe_name, state)
+        if not ok:
+            return jsonify({"reply": info})
+        log_event("recipe_added_to_cart", {"recipe": recipe_name, "items": added_items, "cart_total": state.get("total", 0)})
+        return jsonify({"reply": f"{info}\nTotal: Rs {state.get('total', 0)}"})
+
+    if msg.startswith("create family"):
+        family_name = msg.replace("create family", "", 1).strip() or f"{get_logged_in_username()}'s Family"
+        group, err = create_family_group(get_logged_in_user_id(), family_name)
+        if err:
+            return jsonify({"reply": err})
+        return jsonify({"reply": f"Family created: {group['name']}\nInvite code: {group['invite_code']}\nShare this code so others can join."})
+
+    if msg.startswith("join family"):
+        invite = msg.replace("join family", "", 1).strip()
+        group, err = join_family_group(get_logged_in_user_id(), invite)
+        if err:
+            return jsonify({"reply": err})
+        return jsonify({"reply": f"You joined family '{group['name']}'. Invite code: {group['invite_code']}"})
+
+    if msg in {"family code", "family invite", "my family"}:
+        group = get_family_group_for_user(get_logged_in_user_id())
+        if not group:
+            return jsonify({"reply": "You are not in a family group. Use 'create family <name>' or 'join family <code>'."})
+        return jsonify({"reply": f"Family: {group['name']}\nInvite code: {group['invite_code']}"})
+
+    if msg.startswith("family add"):
+        payload = msg.replace("family add", "", 1).strip()
+        item, qty, unit = parse_item_request(payload)
+        ok, info = add_family_list_item(get_logged_in_user_id(), item=item, qty=qty, unit=unit)
+        return jsonify({"reply": info})
+
+    if msg.startswith("family remove"):
+        payload = msg.replace("family remove", "", 1).strip()
+        item, qty, _ = parse_item_request(payload)
+        ok, info = remove_family_list_item(get_logged_in_user_id(), item=item, qty=qty)
+        return jsonify({"reply": info})
+
+    if msg in {"family list", "shared list"}:
+        group, rows = fetch_family_list(get_logged_in_user_id())
+        if not group:
+            return jsonify({"reply": "You are not in a family group yet."})
+        if not rows:
+            return jsonify({"reply": f"Family list for {group['name']} is empty."})
+        lines = "\n".join(
+            [f"- {r['item'].title()} {format_qty(r['qty'])} {r['unit'] or ''} (by {r.get('added_by') or 'member'})".replace("  ", " ").strip() for r in rows]
+        )
+        return jsonify({"reply": f"Shared Family List ({group['name']}):\n{lines}"})
+
+    if msg in {"family orders", "family history", "shared history"}:
+        group, rows = fetch_family_order_timeline(get_logged_in_user_id(), limit=30)
+        if not group:
+            return jsonify({"reply": "You are not in a family group yet."})
+        if not rows:
+            return jsonify({"reply": f"No placed family orders found for {group['name']} yet."})
+        lines = []
+        for r in rows:
+            try:
+                dt = datetime.datetime.fromisoformat(r["created_at"])
+                day_label = dt.strftime("%a %d %b, %I:%M %p")
+            except Exception:
+                day_label = str(r["created_at"])
+            lines.append(
+                f"- {day_label} | {r.get('username') or 'member'} ordered {r['item'].title()} {format_qty(r['qty'])} {r['unit'] or ''}".replace("  ", " ").strip()
+            )
+        return jsonify({"reply": f"Family Purchase Timeline ({group['name']}):\n" + "\n".join(lines)})
+
+    if msg in {"family stock score", "family stock scores", "family stock snapshot"}:
+        group, snapshot = fetch_family_stock_snapshot(get_logged_in_user_id(), max_items=10)
+        if not group:
+            return jsonify({"reply": "You are not in a family group yet."})
+        if not snapshot:
+            return jsonify({"reply": "Not enough family purchase history yet for stock scoring."})
+        lines = []
+        for s in snapshot:
+            lines.append(
+                f"- {s['item'].title()}: {s['score']}% ({s['label']}) | last buy {s['days_since_last']} days ago | est cover {s['estimated_coverage_days']} days"
+            )
+        return jsonify({"reply": f"Family Stock Scoreboard ({group['name']}):\n" + "\n".join(lines)})
+
+    family_stock_match = re.match(r"^\s*family\s+(?:stock|check)\s+(.+?)\s*$", msg)
+    if family_stock_match:
+        query_item = family_stock_match.group(1).strip()
+        group, recent = fetch_recent_family_item_activity(get_logged_in_user_id(), query_item, lookback_days=14, limit=5)
+        if not group:
+            return jsonify({"reply": "You are not in a family group yet."})
+        if not recent:
+            return jsonify({"reply": f"No recent family purchase found for {query_item.title()} in last 14 days."})
+        _, estimate = estimate_family_item_stock(get_logged_in_user_id(), query_item, lookback_days=60)
+        lines = []
+        for r in recent:
+            try:
+                dt = datetime.datetime.fromisoformat(r["created_at"])
+                day_label = dt.strftime("%a %d %b")
+            except Exception:
+                day_label = str(r["created_at"])
+            lines.append(f"- {day_label}: {r.get('username') or 'member'} bought {r['item'].title()} {format_qty(r['qty'])} {r['unit'] or ''}".replace("  ", " ").strip())
+        est_text = ""
+        if estimate:
+            est_text = (
+                f"\n\nEstimated stock left: {estimate['score']}% ({estimate['label']})"
+                f"\nBased on recent usage over ~{estimate['samples']} purchase records."
+            )
+        return jsonify({"reply": f"Recent family purchases for {query_item.title()}:\n" + "\n".join(lines) + est_text})
+
+    if any(kw in msg for kw in ["monthly insight", "monthly insights", "insights", "this month spend"]):
+        insight = fetch_monthly_insights(get_logged_in_user_id())
+        if not insight:
+            return jsonify({"reply": "Please login to view insights."})
+        if insight["order_count"] == 0:
+            return jsonify({"reply": f"No placed orders in {insight['month_label']} yet. Place an order to start insights."})
+        return jsonify(
+            {
+                "reply": (
+                    f"Monthly Insights ({insight['month_label']}):\n"
+                    f"- Total Spend: Rs {int(round(insight['total_spend']))}\n"
+                    f"- Orders: {insight['order_count']}\n"
+                    f"- Snacks Spend: Rs {int(round(insight['snacks_spend']))}\n"
+                    f"- Top Category: {(insight['top_category'] or 'N/A').title()}"
+                )
+            }
+        )
+
+    contextual_reply = handle_lifestyle_context(raw_message, state)
+    if contextual_reply:
+        if isinstance(contextual_reply, dict):
+            return jsonify(contextual_reply)
+        return jsonify({"reply": contextual_reply})
 
     if any(phrase in msg for phrase in ["my orders", "past orders", "order history", "show orders"]):
         user_id = get_logged_in_user_id()
@@ -1737,6 +3027,7 @@ def chat():
                 session["last_order_id"] = cancel_order_id
                 session.modified = True
                 log_event("order_cancelled_from_reminder", {"message": raw_message}, order_id=cancel_order_id)
+                queue_notification("Order Cancelled", info, order_id=cancel_order_id)
                 return jsonify({"reply": f"Understood. {info}"})
             return jsonify({"reply": info})
         return jsonify({"reply": "Understood. If this is about your pickup, type 'cancel order'."})
@@ -1753,6 +3044,7 @@ def chat():
         session["last_order_id"] = cancel_order_id
         session.modified = True
         log_event("order_cancelled", {"message": info}, order_id=cancel_order_id)
+        queue_notification("Order Cancelled", info, order_id=cancel_order_id)
         return jsonify({"reply": info})
 
     if state["waiting_for_pickup_time"]:
@@ -1773,6 +3065,11 @@ def chat():
         log_event(
             "order_placed",
             {"method": "Pickup", "total": total, "pickup_time": pickup_dt.isoformat(timespec="minutes")},
+            order_id=order_id,
+        )
+        queue_notification(
+            "Order Placed",
+            f"Order {order_id} confirmed for pickup at {pickup_dt.strftime('%H:%M')}.",
             order_id=order_id,
         )
         clear_user_state()
@@ -1813,17 +3110,50 @@ def chat():
             {"method": "Delivery", "subtotal": total, "delivery_fee": fee, "total": final_amt},
             order_id=order_id,
         )
+        queue_notification(
+            "Order Placed",
+            f"Order {order_id} confirmed for delivery. Total Rs {final_amt}.",
+            order_id=order_id,
+        )
         clear_user_state()
         return jsonify({"reply": f"Order placed.\nOrder ID: {order_id}\nSubtotal: Rs {total}\nDelivery Fee: Rs {fee}\nTotal: Rs {final_amt}"})
+
+    if any(token in msg for token in ["budget", "under", "within", "affordable", "cheap", "optimize"]):
+        budget_value, preferred_category = parse_budget_request(raw_message)
+        if not budget_value or budget_value <= 0:
+            return jsonify(
+                {
+                    "reply": "Please share a budget amount. Example: 'budget 300 fruits' or 'optimize under 500'."
+                }
+            )
+        if not preferred_category and state.get("budget_mode") == "tight":
+            preferred_category = "staples"
+        result, status = optimize_budget_plan(budget_value, preferred_category=preferred_category)
+        if status != 200:
+            return jsonify({"reply": result.get("error", "Could not generate budget plan right now.")}), status
+        if not result.get("items"):
+            return jsonify({"reply": f"I could not build a plan under Rs {int(budget_value)}. Try increasing budget."})
+        lines = "\n".join(
+            [
+                f"- {it['name'].title()} x{it['qty']} = Rs {int(round(it['line_total']))}"
+                for it in result["items"][:10]
+            ]
+        )
+        category_part = f" ({preferred_category.title()})" if preferred_category else ""
+        return jsonify(
+            {
+                "reply": f"Budget Plan{category_part} for Rs {int(round(result['budget']))}:\n{lines}\n\nTotal: Rs {int(round(result['total']))}\nRemaining: Rs {int(round(result['remaining']))}"
+            }
+        )
 
     if any(token in msg for token in ["help", "madad", "kya hai", "kya kar", "what can you do"]):
         return jsonify(
             {
                 "reply": reply_text(
                     state,
-                    "Guide: 'Categories', 'Apple 2', 'Bill', 'Confirm'. For pickup, bot will ask pickup time (example: 18:30 or 6:30 PM). Remove item: 'remove apple 1kg'. Cancel placed order: 'cancel order'. Past orders: 'my orders'. Language: 'language english/hindi/hinglish'.",
-                    "Guide: 'Categories', 'Apple 2', 'Bill', 'Confirm'. Pickup ke liye bot aapse pickup time poochega (udaharan: 18:30 ya 6:30 PM). Item hatane ke liye: 'remove apple 1kg'. Order cancel: 'cancel order'. Purane orders: 'my orders'. Bhasha: 'language english/hindi/hinglish'.",
-                    "Guide: 'Categories', 'Apple 2', 'Bill', 'Confirm'. Pickup ke liye bot pickup time poochega (example: 18:30 ya 6:30 PM). Item remove: 'remove apple 1kg'. Order cancel: 'cancel order'. Past orders: 'my orders'. Language: 'language english/hindi/hinglish'.",
+                    "Guide: 'Categories', 'Apple 2', 'Bill', 'Confirm', 'budget 300 fruits'. Recipe: 'I am making pasta tonight' then tap Add All. Family: 'create family Home', 'join family FMXXXXXX', 'family add milk 2', 'family list', 'family orders', 'family check milk', 'family stock score'. Duplicate prevention: if recently bought, bot asks before adding unless you say 'add anyway'. Insights: 'monthly insights'. Pickup time formats: 18:30, 6:30 PM, tomorrow 10:30 AM.",
+                    "Guide: 'Categories', 'Apple 2', 'Bill', 'Confirm', 'budget 300 fruits'. Recipe: 'I am making pasta tonight' then tap Add All. Family: 'create family Home', 'join family FMXXXXXX', 'family add milk 2', 'family list', 'family orders', 'family check milk', 'family stock score'. Duplicate prevention: if recently bought, bot asks before adding unless you say 'add anyway'. Insights: 'monthly insights'. Pickup time formats: 18:30, 6:30 PM, tomorrow 10:30 AM.",
+                    "Guide: 'Categories', 'Apple 2', 'Bill', 'Confirm', 'budget 300 fruits'. Recipe: 'I am making pasta tonight' then tap Add All. Family: 'create family Home', 'join family FMXXXXXX', 'family add milk 2', 'family list', 'family orders', 'family check milk', 'family stock score'. Duplicate prevention: if recently bought, bot asks before adding unless you say 'add anyway'. Insights: 'monthly insights'. Pickup time formats: 18:30, 6:30 PM, tomorrow 10:30 AM.",
                 )
             }
         )
@@ -1842,11 +3172,16 @@ def chat():
             total -= removed["line_total"]
             state["orders"] = orders
             state["total"] = total
+            state["last_item"] = removed.get("item")
             save_user_state(state)
             return jsonify({"reply": f"Removed {removed['item'].title()} {format_qty(removed['qty'])} {removed['unit']}. New total: Rs {total}"})
-        product = find_best_product_match(remove_request["item_query"], include_inactive=True)
+        remove_item_query = remove_request["item_query"]
+        product = find_best_product_match(remove_item_query, include_inactive=True)
+        if not product and is_context_followup_message(msg) and state.get("last_item"):
+            remove_item_query = state["last_item"]
+            product = find_best_product_match(remove_item_query, include_inactive=True)
         if not product:
-            return jsonify({"reply": f"Could not find {remove_request['item_query']} in catalog."})
+            return jsonify({"reply": f"Could not find {remove_item_query} in catalog."})
         qty_in_base, err = convert_quantity_to_base(remove_request["qty"], remove_request["unit"], product["base_unit"])
         if err:
             return jsonify({"reply": err})
@@ -1856,6 +3191,7 @@ def chat():
         total -= removed_amount
         state["orders"] = orders
         state["total"] = total
+        state["last_item"] = product["name"]
         save_user_state(state)
         return jsonify({"reply": f"Removed {product['name'].title()} {format_qty(removed_qty)} {product['base_unit']}. New total: Rs {total}"})
 
@@ -1883,9 +3219,36 @@ def chat():
 
     item_query, qty, user_unit = parse_item_request(msg)
     product = find_best_product_match(item_query, include_inactive=False)
+    if not product and is_context_followup_message(msg) and state.get("last_item"):
+        item_query = state["last_item"]
+        product = find_best_product_match(item_query, include_inactive=False)
     if product:
         if qty <= 0:
             return jsonify({"reply": "Quantity must be greater than 0."})
+        if "add anyway" not in msg and "need more" not in msg and "more stock" not in msg:
+            dup_hint = build_family_duplicate_hint(get_logged_in_user_id(), product["name"], lookback_days=7)
+            if dup_hint:
+                state["pending_add"] = {
+                    "item": product["name"],
+                    "qty": float(qty),
+                    "unit": user_unit,
+                }
+                save_user_state(state)
+                return jsonify({"reply": dup_hint})
+        dietary_preference = state.get("dietary_preference")
+        blocked = DIETARY_BLOCKLIST.get(dietary_preference, set()) if dietary_preference else set()
+        if product["name"] in blocked and "add anyway" not in msg:
+            state["pending_add"] = {
+                "item": product["name"],
+                "qty": float(qty),
+                "unit": user_unit,
+            }
+            save_user_state(state)
+            return jsonify(
+                {
+                    "reply": f"{product['name'].title()} may not fit your {dietary_preference} preference. Try another option or say 'add anyway'."
+                }
+            )
         qty_in_base, err = convert_quantity_to_base(qty, user_unit, product["base_unit"])
         if err:
             return jsonify({"reply": err})
@@ -1894,6 +3257,11 @@ def chat():
         total += line_total
         state["orders"] = orders
         state["total"] = total
+        state["last_item"] = product["name"]
+        state["pending_add"] = None
+        mem = state.get("item_memory", {})
+        mem[product["name"]] = int(mem.get(product["name"], 0) + 1)
+        state["item_memory"] = mem
         save_user_state(state)
         log_event(
             "cart_item_added",
@@ -1935,10 +3303,15 @@ def chat():
     )
 
 
+@app.route("/chat", methods=["POST"])
+def chat_alias():
+    return chat()
+
+
 init_db()
+if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
+    start_background_reminder_worker()
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
-
-
