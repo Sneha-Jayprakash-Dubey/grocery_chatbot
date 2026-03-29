@@ -2645,6 +2645,34 @@ def admin_catalog():
     if guard:
         return guard
 
+    def map_category_row(row):
+        try:
+            return {"id": row["id"], "name": row["name"]}
+        except Exception:
+            return {"id": row[0], "name": row[1]}
+
+    def map_product_row(row):
+        try:
+            return {
+                "id": row["id"],
+                "category_id": row["category_id"],
+                "name": row["name"],
+                "price_per_unit": row["price_per_unit"],
+                "base_unit": row["base_unit"],
+                "aliases": row["aliases"],
+                "is_active": row["is_active"],
+            }
+        except Exception:
+            return {
+                "id": row[0],
+                "category_id": row[1],
+                "name": row[2],
+                "price_per_unit": row[3],
+                "base_unit": row[4],
+                "aliases": row[5],
+                "is_active": row[6],
+            }
+
     with get_db_connection() as conn:
         categories = conn.execute("SELECT id, name FROM categories ORDER BY name").fetchall()
         products = conn.execute(
@@ -2657,8 +2685,8 @@ def admin_catalog():
 
     return jsonify(
         {
-            "categories": [dict(c) for c in categories],
-            "products": [dict(p) for p in products],
+            "categories": [map_category_row(c) for c in categories],
+            "products": [map_product_row(p) for p in products],
         }
     )
 
