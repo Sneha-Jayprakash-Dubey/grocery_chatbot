@@ -288,6 +288,7 @@ DEFAULT_CATALOG = {
 RECIPE_KITS = {
     "pasta": ["tomato", "onion", "cheese", "butter"],
     "paneer curry": ["paneer", "tomato", "onion", "butter"],
+    "matar paneer": ["paneer", "peas", "tomato", "onion"],
     "sandwich": ["bread", "butter", "tomato", "onion"],
     "omelette": ["eggs", "onion", "tomato", "butter"],
     "fruit bowl": ["apple", "banana", "orange", "mango"],
@@ -295,7 +296,7 @@ RECIPE_KITS = {
 
 DIETARY_BLOCKLIST = {
     "vegan": {"milk", "cheese", "butter", "paneer", "curd", "eggs"},
-    "jain": {"onion", "potato", "carrot", "ginger", "garlic"},
+    "jain": {"onion", "potato", "carrot", "ginger","Onion," "garlic", "eggs", "chicken", "fish"},
     "diabetic": {"sugar", "chocolate", "juice", "biscuits"},
 }
 
